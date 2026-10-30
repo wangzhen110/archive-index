@@ -7,6 +7,27 @@
   ],
   "boxes": [
     {
+      "id": "NEW-004",
+      "room": "",
+      "row": "",
+      "shelf": "",
+      "layer": "",
+      "note": "",
+      "folders": [
+        {
+          "name": "沙发沙发",
+          "path": "",
+          "note": "",
+          "files": [
+            {
+              "name": "阿萨法撒",
+              "note": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "A-2024-01",
       "room": "一号库房",
       "row": "A 排",
