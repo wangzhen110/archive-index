@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>二维码标签打印</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>二维码标签打印</h1>
+  <nav>
+    <a href="index.html">查询</a>
+    <a href="labels.html" class="active">标签打印</a>
+  </nav>
+  <div class="meta"><span id="statMeta">加载中…</span></div>
+</header>
+
+<main class="wrap">
+  <section class="panel no-print">
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="筛选档案盒：编号 / 库房 / 排架 / 盒内文件…" style="flex:1 1 320px">
+      <select id="cols">
+        <option value="2">每行 2 个</option>
+        <option value="3" selected>每行 3 个</option>
+        <option value="4">每行 4 个</option>
+      </select>
+      <button id="allBtn">全选</button>
+      <button id="noneBtn">清空</button>
+      <span class="spacer"></span>
+      <button class="primary" id="printBtn">打印标签</button>
+    </div>
+
+    <div class="picker" id="picker"></div>
+
+    <div class="stat-line">
+      <span>已选 <b id="selCount">0</b> 个盒</span>
+      <span class="muted">标签尺寸约 60×34mm，A4 纸每行按上方列数排版。扫码指向该盒清单页。</span>
+    </div>
+  </section>
+
+  <section class="panel" id="previewPanel">
+    <div class="legend no-print" style="margin-bottom:12px">
+      <span>标签预览</span>
+    </div>
+    <div class="labels cols-3" id="labels"></div>
+    <div class="empty hidden" id="emptyBox">还没有选择档案盒。在上方勾选后即可预览与打印。</div>
+  </section>
+</main>
+
+<script src="assets/qrcode.min.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(function () {
+  let DATA = null;
+  const selected = new Set();
+  const $ = function (id) { return document.getElementById(id); };
+
+  function boxText(b) {
+    return [b.id, b.room, b.row, b.shelf, b.layer, b.note]
+      .concat((b.items || []).map(function (i) { return i.title; }))
+      .filter(Boolean).join(' ').toLowerCase();
+  }
+
+  function renderPicker() {
+    const terms = $('q').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const rows = DATA.boxes.filter(function (b) {
+      if (!terms.length) return true;
+      const t = boxText(b);
+      return terms.every(function (k) { return t.indexOf(k) >= 0; });
+    });
+
+    $('picker').innerHTML = rows.length ? rows.map(function (b) {
+      return '<label class="picker-row">' +
+        '<input type="checkbox" data-id="' + App.esc(b.id) + '"' + (selected.has(b.id) ? ' checked' : '') + '>' +
+        '<span class="chip">' + App.esc(b.id) + '</span>' +
+        '<span>' + App.esc(App.location(b) || '（未登记位置）') + '</span>' +
+        '<span class="muted small" style="margin-left:auto">' + App.boxItemCount(b) + ' 件</span>' +
+      '</label>';
+    }).join('') : '<div class="empty">没有匹配的档案盒。</div>';
+  }
+
+  function renderLabels() {
+    const boxes = DATA.boxes.filter(function (b) { return selected.has(b.id); });
+    $('selCount').textContent = boxes.length;
+    $('labels').className = 'labels cols-' + $('cols').value;
+    $('emptyBox').classList.toggle('hidden', boxes.length > 0);
+
+    $('labels').innerHTML = boxes.map(function (b) {
+      return '<div class="label" data-id="' + App.esc(b.id) + '">' +
+        '<div class="qr"></div>' +
+        '<div class="info">' +
+          '<div class="code">' + App.esc(b.id) + '</div>' +
+          '<div class="where">' + App.locParts(b).map(App.esc).join('<br>') + '</div>' +
+          '<div class="cnt">' + App.boxItemCount(b) + ' 件</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    if (typeof QRCode === 'undefined') {
+      $('labels').querySelectorAll('.qr').forEach(function (el) {
+        el.innerHTML = '<span class="muted small">二维码库未加载</span>';
+      });
+      return;
+    }
+
+    boxes.forEach(function (b) {
+      const holder = $('labels').querySelector('.label[data-id="' + CSS.escape(b.id) + '"] .qr');
+      if (!holder) return;
+      holder.innerHTML = '';
+      new QRCode(holder, {
+        text: App.boxUrl(b.id),
+        width: 240,
+        height: 240,
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    });
+  }
+
+  function init() {
+    App.loadData().then(function (data) {
+      DATA = data;
+      $('statMeta').textContent = '共 ' + data.boxes.length + ' 个档案盒';
+      const preset = new URLSearchParams(location.search).get('box');
+      if (preset && data.boxes.some(function (b) { return b.id === preset; })) selected.add(preset);
+      renderPicker();
+      renderLabels();
+    }).catch(function (err) {
+      $('statMeta').textContent = err.message;
+    });
+  }
+
+  $('q').addEventListener('input', renderPicker);
+  $('picker').addEventListener('change', function (e) {
+    const cb = e.target.closest('input[type="checkbox"]');
+    if (!cb) return;
+    if (cb.checked) selected.add(cb.dataset.id); else selected.delete(cb.dataset.id);
+    renderLabels();
+  });
+  $('allBtn').addEventListener('click', function () {
+    $('picker').querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+      cb.checked = true;
+      selected.add(cb.dataset.id);
+    });
+    renderLabels();
+  });
+  $('noneBtn').addEventListener('click', function () {
+    selected.clear();
+    $('picker').querySelectorAll('input[type="checkbox"]').forEach(function (cb) { cb.checked = false; });
+    renderLabels();
+  });
+  $('cols').addEventListener('change', renderLabels);
+  $('printBtn').addEventListener('click', function () {
+    if (!selected.size) { App.toast('请先勾选要打印的档案盒', 'err'); return; }
+    window.print();
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>
