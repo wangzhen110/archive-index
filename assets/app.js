@@ -62,6 +62,25 @@ window.App = (function () {
     return window.location.href.split('?')[0].split('#')[0].replace(/[^/]*$/, '');
   }
 
+  // 每个档案盒固定一个配色，便于扫视区分
+  const BOX_COLORS = [
+    ['#2563eb', '#eef4ff'],
+    ['#0f8a7e', '#e6f6f4'],
+    ['#b45309', '#fdf4e6'],
+    ['#7c3aed', '#f3eefe'],
+    ['#be123c', '#fdeef1'],
+    ['#475569', '#eef1f5'],
+    ['#15803d', '#eaf6ee'],
+    ['#0369a1', '#e8f4fc']
+  ];
+  function boxPalette(box, idx) {
+    if (typeof idx === 'number' && idx >= 0) return BOX_COLORS[idx % BOX_COLORS.length];
+    const s = String((box && box.id) || '');
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return BOX_COLORS[h % BOX_COLORS.length];
+  }
+
   function boxUrl(id) {
     return pageBase() + '?box=' + encodeURIComponent(id);
   }
@@ -76,6 +95,7 @@ window.App = (function () {
     stats: stats,
     toast: toast,
     pageBase: pageBase,
+    boxPalette: boxPalette,
     boxUrl: boxUrl
   };
 })();
