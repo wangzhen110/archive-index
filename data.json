@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "updatedAt": "2026-10-30",
   "rooms": [
     "一号库房",
@@ -13,26 +13,25 @@
       "shelf": "3 节",
       "layer": "第 2 层",
       "note": "财务类，2024 年度",
-      "items": [
+      "folders": [
         {
-          "no": "CW-2024-001",
-          "title": "2024 年度审计报告（含附表）",
-          "year": "2024",
-          "retention": "永久",
-          "dept": "财务部",
-          "path": "\\\\fileserver\\archive\\2024\\财务\\审计报告.pdf",
-          "status": "在架",
-          "note": ""
+          "name": "2024 年度审计",
+          "path": "\\\\fileserver\\archive\\2024\\财务\\审计\\",
+          "note": "",
+          "files": [
+            { "name": "审计报告.pdf", "note": "" },
+            { "name": "审计报告附表.xlsx", "note": "" }
+          ]
         },
         {
-          "no": "CW-2024-002",
-          "title": "2024 年度总账及明细账",
-          "year": "2024",
-          "retention": "30 年",
-          "dept": "财务部",
+          "name": "账簿",
           "path": "\\\\fileserver\\archive\\2024\\财务\\账簿\\",
-          "status": "在架",
-          "note": "纸质 3 册"
+          "note": "纸质 3 册",
+          "files": [
+            { "name": "总账.xlsx", "note": "" },
+            { "name": "明细账.xlsx", "note": "" },
+            { "name": "日记账.xlsx", "note": "" }
+          ]
         }
       ]
     },
@@ -43,26 +42,15 @@
       "shelf": "3 节",
       "layer": "第 3 层",
       "note": "",
-      "items": [
+      "folders": [
         {
-          "no": "HT-2024-001",
-          "title": "重大采购合同（设备类）",
-          "year": "2024",
-          "retention": "30 年",
-          "dept": "采购部",
-          "path": "",
-          "status": "在架",
-          "note": "仅纸质原件"
-        },
-        {
-          "no": "HT-2024-002",
-          "title": "年度框架协议（物流服务）",
-          "year": "2024",
-          "retention": "10 年",
-          "dept": "采购部",
-          "path": "\\\\fileserver\\archive\\2024\\采购\\框架协议\\",
-          "status": "借出",
-          "note": "2026-10-12 借予法务部"
+          "name": "采购合同",
+          "path": "\\\\fileserver\\archive\\2024\\采购\\合同\\",
+          "note": "",
+          "files": [
+            { "name": "设备采购合同.pdf", "note": "仅纸质原件，未扫描" },
+            { "name": "物流框架协议.pdf", "note": "" }
+          ]
         }
       ]
     },
@@ -73,26 +61,23 @@
       "shelf": "1 节",
       "layer": "第 1 层",
       "note": "人事类",
-      "items": [
+      "folders": [
         {
-          "no": "RS-2023-001",
-          "title": "2023 年员工劳动合同（第一批）",
-          "year": "2023",
-          "retention": "30 年",
-          "dept": "人力资源部",
+          "name": "劳动合同 2023",
           "path": "\\\\fileserver\\hr\\contracts\\2023\\",
-          "status": "在架",
-          "note": ""
+          "note": "",
+          "files": [
+            { "name": "第一批劳动合同.pdf", "note": "" },
+            { "name": "第二批劳动合同.pdf", "note": "" }
+          ]
         },
         {
-          "no": "RS-2023-002",
-          "title": "2023 年度绩效考核汇总",
-          "year": "2023",
-          "retention": "10 年",
-          "dept": "人力资源部",
+          "name": "绩效考核",
           "path": "\\\\fileserver\\hr\\performance\\2023\\",
-          "status": "在架",
-          "note": ""
+          "note": "",
+          "files": [
+            { "name": "年度考核汇总.xlsx", "note": "" }
+          ]
         }
       ]
     }
