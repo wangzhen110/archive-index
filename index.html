@@ -1,10 +1,10 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>档案存放索引</title>
-<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/style.css?v=4">
 <style>
   @media print {
     body.detail-open .topbar,
@@ -71,7 +71,7 @@
 
 </main>
 
-<script src="assets/app.js"></script>
+<script src="assets/app.js?v=4"></script>
 <script>
 (function () {
   let DATA = null;
@@ -131,7 +131,7 @@
 
     return '<div class="folder-row' + (open ? ' open' : '') + '">' +
       '<div class="folder-row-head">' +
-        '<span class="caret">▸</span>' +
+        '<span class="caret"></span>' +
         '<b class="f-name">' + mark(folder.name || '（未命名文件夹）', terms) + '</b>' +
         '<span class="muted small">' + files.length + ' 个文件</span>' +
         (folder.path ? '<span class="mono small f-path">' + mark(folder.path, terms) + '</span>' + copyBtn(folder.path) : '') +
@@ -181,7 +181,7 @@
 
       return '<div class="box-group' + (openKeys[box.id] === false ? ' collapsed' : '') + '">' +
         '<div class="box-group-head" data-box="' + App.esc(box.id) + '">' +
-          '<span class="caret">▾</span>' +
+          '<span class="caret"></span>' +
           '<span class="chip">' + App.esc(box.id) + '</span>' +
           '<span class="box-loc">' + App.esc(App.location(box) || '（未登记位置）') + '</span>' +
           '<span class="muted small">' + g.folders.length + ' 个文件夹 / ' +
