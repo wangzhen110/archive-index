@@ -545,6 +545,35 @@ table.grid th, table.grid td {
 }
 table.grid th { color: var(--muted); font-weight: 500; font-size: 12px; white-space: nowrap; }
 
+/* ---------- 按档案盒配色 ---------- */
+.box-group { border-left: 3px solid var(--box, var(--accent)); }
+.box-group-head .chip { background: var(--box-soft, var(--accent-soft)); color: var(--box, var(--accent)); }
+.box-group-head .box-open { color: var(--box, var(--accent)); }
+.box-group-head .caret::before,
+.box-group.collapsed .box-group-head .caret::before {
+  border-right-color: var(--box, var(--accent));
+  border-bottom-color: var(--box, var(--accent));
+}
+.folder-row.open { border-color: var(--box-soft, #cddcf5); }
+.folder-row.open > .folder-row-head .caret::before {
+  border-right-color: var(--box, var(--accent));
+  border-bottom-color: var(--box, var(--accent));
+}
+.folder-row-body { background: var(--box-soft, #fbfcfe); }
+
+#detailPanel { border-top: 3px solid var(--box, var(--accent)); }
+#detailPanel .detail-head h2 { color: var(--box, var(--text)); }
+
+.box-card { border-left: 3px solid var(--box, var(--accent)); }
+.box-card > .box-head { background: var(--box-soft, #fbfcff); }
+.box-card .b-id { color: var(--box, var(--text)); }
+.folder-card.open { border-color: var(--box-soft, #cddcf5); }
+.folder-card.open > .folder-head .folder-toggle::before {
+  border-right-color: var(--box, var(--accent));
+  border-bottom-color: var(--box, var(--accent));
+}
+.folder-card.open > .folder-body { background: var(--box-soft, #fbfcfe); }
+
 /* ---------- 打印 ---------- */
 @media print {
   body { background: #fff; }
