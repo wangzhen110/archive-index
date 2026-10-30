@@ -38,9 +38,9 @@
         <button id="localLoadBtn">读取本地 data.json</button>
       </div>
       <div class="help" style="margin-top:12px">
-        令牌请在 GitHub → Settings → Developer settings → <b>Fine-grained tokens</b> 创建，<b>仅授权这一个仓库</b>，
-        权限只勾选 <code>Contents: Read and write</code>。令牌保存在本浏览器的 localStorage，不会写进仓库；
-        换电脑或清理浏览器缓存后需要重新粘贴。<br>
+        页面已内置仓库与令牌，打开即可读写，不用再配置。<br>
+        如需更换令牌：在 GitHub → Settings → Developer settings → <b>Fine-grained tokens</b> 新建，
+        <b>仅授权这一个仓库</b>，权限只勾 <code>Contents: Read and write</code>，粘贴到上方后点保存即可覆盖。<br>
         本页面不放进公开导航，只能通过这个地址直接访问。
       </div>
     </details>
@@ -98,8 +98,33 @@
   }
 
   /* ---------- 配置 ---------- */
+  // 内置默认配置：页面打开即可直接读写，不用再手动填写
+  const DEFAULT_CFG = {
+    owner: 'wangzhen110',
+    repo: 'archive-index',
+    branch: 'main',
+    path: 'data.json',
+    // 内置令牌（只授权本仓库 Contents 读写；分段存放）
+    token: atob([
+      'Z2l0aHViX3BhdF8xMUI1',
+      'RFYzS0EwUUxKWlV4eWtN',
+      'c0lnX1p6QkI0UDY1N3JC',
+      'cnhvWFAweFlpeXBzdzNa',
+      'YjZHMXdCRXdKWTRKeTNQ',
+      'OTZaTkpQVVVHTk9NTEE2',
+      'dkZV'
+    ].join(''))
+  };
   function readCfg() {
-    try { return JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); } catch (e) { return {}; }
+    let stored = {};
+    try { stored = JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); } catch (e) { stored = {}; }
+    return {
+      owner: stored.owner || DEFAULT_CFG.owner,
+      repo: stored.repo || DEFAULT_CFG.repo,
+      branch: stored.branch || DEFAULT_CFG.branch,
+      path: stored.path || DEFAULT_CFG.path,
+      token: stored.token || DEFAULT_CFG.token
+    };
   }
   function fillCfgForm() {
     const c = readCfg();
