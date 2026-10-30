@@ -84,6 +84,7 @@
     sha: null,
     dirty: false
   };
+  const openFolders = new Set();
 
   /* ---------- 编解码 ---------- */
   function b64ToUtf8(b64) {
@@ -265,16 +266,20 @@
           '</tr>';
         }).join('') : '<tr><td colspan="3" class="muted small">这个文件夹里还没有文件。</td></tr>';
 
-        return '<div class="folder-card" data-fi="' + fi + '">' +
+        return '<div class="folder-card' + (openFolders.has(bi + ':' + fi) ? ' open' : '') + '" data-fi="' + fi + '">' +
           '<div class="folder-head">' +
+            '<button class="folder-toggle" data-act="toggle-folder" data-fi="' + fi + '" title="展开/收起">▸</button>' +
             '<input class="f-name" type="text" data-fi="' + fi + '" data-ff="name" value="' + App.esc(f.name) + '" placeholder="文件夹名，例如 2024 年度审计">' +
             '<input class="f-path" type="text" data-fi="' + fi + '" data-ff="path" value="' + App.esc(f.path) + '" placeholder="电子路径，例如 \\\\fileserver\\archive\\2024\\财务\\">' +
             '<input class="f-note" type="text" data-fi="' + fi + '" data-ff="note" value="' + App.esc(f.note) + '" placeholder="备注（选填）">' +
+            '<span class="count">' + files.length + ' 个文件</span>' +
             '<button data-act="del-folder" data-fi="' + fi + '" style="padding:5px 10px;font-size:12px">删除文件夹</button>' +
           '</div>' +
-          '<table class="items"><thead><tr><th>文件名</th><th>备注</th><th></th></tr></thead>' +
-            '<tbody>' + rows + '</tbody></table>' +
-          '<div class="row-actions"><button data-act="add-file" data-fi="' + fi + '" style="font-size:12px">＋ 添加文件</button></div>' +
+          '<div class="folder-body">' +
+            '<table class="items"><thead><tr><th>文件名</th><th>备注</th><th></th></tr></thead>' +
+              '<tbody>' + rows + '</tbody></table>' +
+            '<div class="row-actions"><button data-act="add-file" data-fi="' + fi + '" style="font-size:12px">＋ 添加文件</button></div>' +
+          '</div>' +
         '</div>';
       }).join('');
 
@@ -392,9 +397,20 @@
       const box = state.data.boxes[bi];
       if (!box) return;
 
+      if (act === 'toggle-folder') {
+        const fcard = btn.closest('.folder-card');
+        if (!fcard) return;
+        const key = bi + ':' + fi;
+        fcard.classList.toggle('open');
+        if (fcard.classList.contains('open')) openFolders.add(key);
+        else openFolders.delete(key);
+        return;
+      }
+
       if (act === 'add-folder') {
         box.folders = box.folders || [];
         box.folders.push({ name: '', path: '', note: '', files: [] });
+        openFolders.add(bi + ':' + (box.folders.length - 1));
         renderBoxes();
         focusEl('input[data-fi="' + (box.folders.length - 1) + '"][data-ff="name"]');
         markDirty();
@@ -404,6 +420,7 @@
         const cnt = (f.files || []).length;
         if (!confirm('删除文件夹「' + (f.name || '未命名') + '」' + (cnt ? '及其 ' + cnt + ' 个文件' : '') + '？')) return;
         box.folders.splice(fi, 1);
+        openFolders.clear();
         renderBoxes();
         markDirty();
       } else if (act === 'add-file') {
@@ -411,6 +428,7 @@
         if (!f) return;
         f.files = f.files || [];
         f.files.push({ name: '', note: '' });
+        openFolders.add(bi + ':' + fi);
         renderBoxes();
         focusEl('input[data-fi="' + fi + '"][data-ii="' + (f.files.length - 1) + '"][data-if="name"]');
         markDirty();
@@ -422,12 +440,14 @@
         if (!it) return;
         if (!confirm('删除文件「' + (it.name || '未命名') + '」？')) return;
         f.files.splice(ii, 1);
+        openFolders.add(bi + ':' + fi);
         renderBoxes();
         markDirty();
       } else if (act === 'del-box') {
         const cnt = (box.folders || []).length;
         if (!confirm('删除档案盒「' + (box.id || '未编号') + '」及其 ' + cnt + ' 个文件夹？')) return;
         state.data.boxes.splice(bi, 1);
+        openFolders.clear();
         renderBoxes();
         markDirty();
       }
