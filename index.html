@@ -12,7 +12,11 @@
     body.detail-open .detail-actions { display: none !important; }
     body { background: #fff; }
   }
-  #detailPanel table.grid tbody tr { cursor: default; }
+  .folder-block { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px; }
+  .folder-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; background: #fafbfc; border-bottom: 1px solid var(--line); border-radius: 8px 8px 0 0; }
+  .folder-head .f-name { font-size: 14px; }
+  .folder-head .f-path { color: var(--muted); word-break: break-all; }
+  .folder-block table.grid { border-radius: 0 0 8px 8px; overflow: hidden; }
 </style>
 </head>
 <body>
@@ -32,42 +36,35 @@
 
   <section class="panel" id="searchPanel">
     <div class="search-row">
-      <input type="search" id="q" placeholder="搜索档号、题名、部门、库房、排架位置、电子路径…" autocomplete="off">
+      <input type="search" id="q" placeholder="输入文件名，查它在哪个文件夹…" autocomplete="off">
       <button class="ghost" id="clearBtn" title="清空">清空</button>
     </div>
 
     <div class="filters">
       <select id="fRoom"><option value="">全部库房</option></select>
-      <select id="fYear"><option value="">全部年度</option></select>
-      <select id="fDept"><option value="">全部部门</option></select>
-      <select id="fRet"><option value="">全部保管期限</option></select>
     </div>
 
     <div class="stat-line">
       <span>档案盒 <b id="sBoxes">0</b></span>
+      <span>文件夹 <b id="sFolders">0</b></span>
       <span>文件 <b id="sItems">0</b></span>
       <span id="sShown"></span>
-      <span id="sUpdated"></span>
     </div>
 
     <div class="table-scroll">
       <table class="grid" id="resultTable">
         <thead>
           <tr>
-            <th>档号</th>
-            <th>题名</th>
-            <th>年度</th>
-            <th>保管期限</th>
-            <th>部门</th>
-            <th>存放位置</th>
-            <th>电子文件</th>
-            <th>状态</th>
+            <th>文件名</th>
+            <th>所在文件夹</th>
+            <th>档案盒位置</th>
+            <th>备注</th>
           </tr>
         </thead>
         <tbody id="resultBody"></tbody>
       </table>
     </div>
-    <div class="empty hidden" id="emptyBox">没有匹配的记录，换个关键词或清空筛选试试。</div>
+    <div class="empty hidden" id="emptyBox">没有匹配的文件，换个关键词或清空筛选试试。</div>
   </section>
 
   <section class="panel hidden" id="detailPanel">
@@ -84,23 +81,7 @@
         <button class="btn primary" id="printBtn">打印盒内清单</button>
       </div>
     </div>
-    <div class="table-scroll">
-      <table class="grid">
-        <thead>
-          <tr>
-            <th>档号</th>
-            <th>题名</th>
-            <th>年度</th>
-            <th>保管期限</th>
-            <th>部门</th>
-            <th>电子文件</th>
-            <th>状态</th>
-            <th>备注</th>
-          </tr>
-        </thead>
-        <tbody id="detailBody"></tbody>
-      </table>
-    </div>
+    <div id="detailBody"></div>
   </section>
 
 </main>
@@ -114,7 +95,7 @@
 
   const $ = function (id) { return document.getElementById(id); };
   const qEl = $('q');
-  const filters = { room: $('fRoom'), year: $('fYear'), dept: $('fDept'), ret: $('fRet') };
+  const filters = { room: $('fRoom') };
 
   function termsOf(s) {
     return s.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -135,93 +116,87 @@
     }
   }
 
-  function flatItem(entry) {
-    const b = entry.box, it = entry.item || {};
-    return [
-      it.no, it.title, it.year, it.retention, it.dept, it.path, it.status, it.note,
-      b.id, b.room, b.row, b.shelf, b.layer, b.note
-    ].filter(Boolean).join(' ').toLowerCase();
+  function folderCell(folder, terms) {
+    const name = folder.name || '（未命名文件夹）';
+    const path = folder.path || '';
+    return '<div><b>' + mark(name, terms) + '</b></div>' +
+      (path ? '<div class="mono small muted path-text">' + mark(path, terms) + '</div>' : '');
+  }
+
+  function copyBtn(text, label) {
+    if (!text) return '';
+    return '<button class="copy-btn" data-copy="' + App.esc(text) + '">' + (label || '复制') + '</button>';
   }
 
   function buildIndex() {
     FLAT = [];
-    DATA.boxes.forEach(function (box) {
-      const items = box.items && box.items.length ? box.items : [null];
-      items.forEach(function (item) {
-        FLAT.push({ box: box, item: item, hay: '' });
+    (DATA.boxes || []).forEach(function (box) {
+      (box.folders || []).forEach(function (folder) {
+        const files = folder.files && folder.files.length ? folder.files : [null];
+        files.forEach(function (file) {
+          FLAT.push({ box: box, folder: folder, file: file, hay: '' });
+        });
       });
     });
-    FLAT.forEach(function (e) { e.hay = flatItem(e); });
+    FLAT.forEach(function (e) {
+      const b = e.box, f = e.folder, it = e.file || {};
+      e.hay = [
+        it.name, it.note,
+        f.name, f.path, f.note,
+        b.id, b.room, b.row, b.shelf, b.layer, b.note
+      ].filter(Boolean).join(' ').toLowerCase();
+    });
   }
 
   function fillFilters() {
-    const rooms = new Set(DATA.rooms.concat(DATA.boxes.map(function (b) { return b.room; })));
-    const years = new Set(), depts = new Set(), rets = new Set();
-    DATA.boxes.forEach(function (b) {
-      (b.items || []).forEach(function (it) {
-        if (it.year) years.add(it.year);
-        if (it.dept) depts.add(it.dept);
-        if (it.retention) rets.add(it.retention);
-      });
-    });
-    const fill = function (sel, values, allLabel) {
-      sel.innerHTML = '<option value="">' + allLabel + '</option>' +
-        Array.from(values).filter(Boolean).sort().map(function (v) {
-          return '<option value="' + App.esc(v) + '">' + App.esc(v) + '</option>';
-        }).join('');
-    };
-    fill(filters.room, rooms, '全部库房');
-    fill(filters.year, years, '全部年度');
-    fill(filters.dept, depts, '全部部门');
-    fill(filters.ret, rets, '全部保管期限');
+    const rooms = new Set(DATA.rooms || []);
+    (DATA.boxes || []).forEach(function (b) { if (b.room) rooms.add(b.room); });
+    filters.room.innerHTML = '<option value="">全部库房</option>' +
+      Array.from(rooms).filter(Boolean).sort().map(function (v) {
+        return '<option value="' + App.esc(v) + '">' + App.esc(v) + '</option>';
+      }).join('');
   }
 
   function render() {
     const terms = termsOf(qEl.value);
     const rows = FLAT.filter(function (e) {
       if (terms.length && !terms.every(function (t) { return e.hay.indexOf(t) >= 0; })) return false;
-      const b = e.box, it = e.item || {};
-      if (filters.room.value && b.room !== filters.room.value) return false;
-      if (filters.year.value && it.year !== filters.year.value) return false;
-      if (filters.dept.value && it.dept !== filters.dept.value) return false;
-      if (filters.ret.value && it.retention !== filters.ret.value) return false;
+      if (filters.room.value && e.box.room !== filters.room.value) return false;
       return true;
     });
 
-    $('sShown').textContent = '当前显示 ' + rows.length + ' 条';
-    $('emptyBox').classList.toggle('hidden', rows.length > 0);
+    $('sShown').textContent = rows.length ? '当前显示 ' + rows.length + ' 个文件' : '';
 
     const LIMIT = 300;
     const html = rows.slice(0, LIMIT).map(function (e) {
-      const b = e.box, it = e.item || {};
-      const statusCls = it.status === '在架' ? 'chip gray' : (it.status ? 'chip warn' : 'chip gray');
-      const pathCell = it.path
-        ? (/^https?:/i.test(it.path)
-            ? '<a href="' + App.esc(it.path) + '" target="_blank" rel="noopener" class="small">打开链接</a>'
-            : '<span class="mono small" title="' + App.esc(it.path) + '">' + mark(App.fileNameFromPath(it.path), terms) + '</span>')
-        : '<span class="muted">—</span>';
+      const b = e.box, f = e.folder, it = e.file || {};
       return '<tr data-box="' + App.esc(b.id) + '">' +
-        '<td class="nowrap" data-label="档号"><span class="mono">' + mark(it.no || '（未编号）', terms) + '</span></td>' +
-        '<td data-label="题名">' + mark(it.title || '', terms) + '</td>' +
-        '<td class="nowrap" data-label="年度">' + mark(it.year || '', terms) + '</td>' +
-        '<td class="nowrap" data-label="保管期限">' + mark(it.retention || '', terms) + '</td>' +
-        '<td class="nowrap" data-label="部门">' + mark(it.dept || '', terms) + '</td>' +
-        '<td class="loc" data-label="存放位置"><span class="chip">' + mark(b.id, terms) + '</span> ' +
-          mark(App.location(b), terms) + '</td>' +
-        '<td data-label="电子文件">' + pathCell + '</td>' +
-        '<td class="nowrap" data-label="状态"><span class="' + statusCls + '">' + mark(it.status || '在架', terms) + '</span></td>' +
+        '<td data-label="文件名"><span class="file-name">' + mark(it.name || '（未命名）', terms) + '</span></td>' +
+        '<td data-label="所在文件夹">' + folderCell(f, terms) + '</td>' +
+        '<td data-label="档案盒">' +
+          '<span class="chip">' + mark(b.id, terms) + '</span> ' +
+          '<span class="loc-inline">' + mark(App.location(b), terms) + '</span>' +
+        '</td>' +
+        '<td data-label="备注" class="small muted">' + mark(it.note || '', terms) + '</td>' +
       '</tr>';
     }).join('');
 
     $('resultBody').innerHTML = html || '';
+    $('emptyBox').classList.toggle('hidden', rows.length > 0);
     if (rows.length > LIMIT) {
-      $('resultBody').innerHTML += '<tr><td colspan="8" class="muted small">仅显示前 ' + LIMIT +
+      $('resultBody').innerHTML += '<tr><td colspan="4" class="muted small">仅显示前 ' + LIMIT +
         ' 条，共 ' + rows.length + ' 条，请补充关键词缩小范围。</td></tr>';
     }
+
+    if (currentBox) openBox(currentBox.id, false);
+  }
+
+  function copyOf(path) {
+    return path ? '<button class="copy-btn" data-copy="' + App.esc(path) + '">复制路径</button>' : '';
   }
 
   function openBox(id, push) {
-    const box = DATA.boxes.find(function (b) { return b.id === id; });
+    const box = (DATA.boxes || []).find(function (b) { return b.id === id; });
     if (!box) { App.toast('找不到档案盒：' + id, 'err'); return; }
     currentBox = box;
     $('dCode').textContent = box.id;
@@ -229,25 +204,25 @@
     $('dNote').textContent = box.note ? '备注：' + box.note : '';
     $('dLabelLink').href = 'labels.html?box=' + encodeURIComponent(box.id);
 
-    const items = box.items || [];
-    $('detailBody').innerHTML = items.length ? items.map(function (it) {
-      const statusCls = it.status === '在架' ? 'chip gray' : 'chip warn';
-      const pathCell = it.path
-        ? (/^https?:/i.test(it.path)
-            ? '<a href="' + App.esc(it.path) + '" target="_blank" rel="noopener" class="small">打开链接</a>'
-            : '<span class="mono small">' + App.esc(it.path) + '</span>')
-        : '<span class="muted">—</span>';
-      return '<tr>' +
-        '<td class="nowrap" data-label="档号"><span class="mono">' + App.esc(it.no || '（未编号）') + '</span></td>' +
-        '<td data-label="题名">' + App.esc(it.title || '') + '</td>' +
-        '<td class="nowrap" data-label="年度">' + App.esc(it.year || '') + '</td>' +
-        '<td class="nowrap" data-label="保管期限">' + App.esc(it.retention || '') + '</td>' +
-        '<td class="nowrap" data-label="部门">' + App.esc(it.dept || '') + '</td>' +
-        '<td data-label="电子文件">' + pathCell + '</td>' +
-        '<td class="nowrap" data-label="状态"><span class="' + statusCls + '">' + App.esc(it.status || '在架') + '</span></td>' +
-        '<td class="small muted" data-label="备注">' + App.esc(it.note || '') + '</td>' +
-      '</tr>';
-    }).join('') : '<tr><td colspan="8" class="muted small">这个盒还没有登记文件。</td></tr>';
+    const folders = box.folders || [];
+    $('detailBody').innerHTML = folders.length ? folders.map(function (f) {
+      const files = f.files || [];
+      const rows = files.length ? files.map(function (it) {
+        return '<tr>' +
+          '<td data-label="文件名"><span class="file-name">' + App.esc(it.name || '（未命名）') + '</span></td>' +
+          '<td data-label="备注" class="small muted">' + App.esc(it.note || '') + '</td>' +
+        '</tr>';
+      }).join('') : '<tr><td colspan="2" class="muted small">这个文件夹里还没有文件。</td></tr>';
+      return '<div class="folder-block">' +
+        '<div class="folder-head">' +
+          '<span class="chip">文件夹</span>' +
+          '<b class="f-name">' + App.esc(f.name || '（未命名文件夹）') + '</b>' +
+          (f.path ? '<span class="mono small f-path">' + App.esc(f.path) + '</span>' + copyOf(f.path) : '') +
+          (f.note ? '<span class="muted small">' + App.esc(f.note) + '</span>' : '') +
+        '</div>' +
+        '<table class="grid files"><tbody>' + rows + '</tbody></table>' +
+      '</div>';
+    }).join('') : '<div class="empty">这个盒还没有登记文件夹。</div>';
 
     $('searchPanel').classList.add('hidden');
     $('detailPanel').classList.remove('hidden');
@@ -255,8 +230,7 @@
     window.scrollTo({ top: 0 });
 
     if (push !== false) {
-      const url = '?box=' + encodeURIComponent(box.id);
-      history.pushState({ box: box.id }, '', url);
+      history.pushState({ box: box.id }, '', '?box=' + encodeURIComponent(box.id));
     }
   }
 
@@ -273,15 +247,39 @@
     if (box) openBox(box, false);
   }
 
+  // 复制按钮：捕获阶段拦截，避免触发整行点击
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('[data-copy]');
+    if (!btn) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const text = btn.getAttribute('data-copy');
+    const done = function () { App.toast('已复制：' + text, 'ok'); };
+    const fallback = function () {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;left:-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); done(); } catch (err) { App.toast('复制失败，请手动选中复制', 'err'); }
+      document.body.removeChild(ta);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fallback);
+    } else {
+      fallback();
+    }
+  }, true);
+
   function init() {
     App.loadData().then(function (data) {
       DATA = data;
       const s = App.stats(data);
       $('sBoxes').textContent = s.boxes;
-      $('sItems').textContent = s.items;
-      $('statMeta').textContent = '共 ' + s.boxes + ' 盒 / ' + s.items + ' 件 · 更新于 ' +
-        (data.updatedAt || '—');
-      $('sUpdated').textContent = '';
+      $('sFolders').textContent = s.folders;
+      $('sItems').textContent = s.files;
+      $('statMeta').textContent = '共 ' + s.boxes + ' 盒 / ' + s.folders + ' 个文件夹 / ' +
+        s.files + ' 个文件 · 更新于 ' + (data.updatedAt || '—');
       buildIndex();
       fillFilters();
       render();
@@ -294,10 +292,10 @@
   }
 
   qEl.addEventListener('input', render);
-  Object.keys(filters).forEach(function (k) { filters[k].addEventListener('change', render); });
+  filters.room.addEventListener('change', render);
   $('clearBtn').addEventListener('click', function () {
     qEl.value = '';
-    Object.keys(filters).forEach(function (k) { filters[k].value = ''; });
+    filters.room.value = '';
     render();
     qEl.focus();
   });
