@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>档案录入维护</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>档案录入维护</h1>
+  <nav>
+    <a href="index.html">查询</a>
+    <a href="labels.html">标签打印</a>
+    <a href="admin.html" class="active">录入</a>
+  </nav>
+  <div class="meta"><span id="statMeta">未加载数据</span></div>
+</header>
+
+<main class="wrap">
+
+  <div id="banner"></div>
+
+  <section class="panel">
+    <details id="cfgDetails">
+      <summary style="cursor:pointer;font-weight:600">GitHub 仓库配置（只需设置一次，存在本机浏览器）</summary>
+      <div class="cfg-grid" style="margin-top:14px">
+        <div class="field"><label>用户名 / 组织</label><input type="text" id="cOwner" placeholder="例如 zhangsan"></div>
+        <div class="field"><label>仓库名</label><input type="text" id="cRepo" placeholder="例如 archive-index"></div>
+        <div class="field"><label>分支</label><input type="text" id="cBranch" placeholder="main" value="main"></div>
+        <div class="field"><label>数据文件路径</label><input type="text" id="cPath" placeholder="data.json" value="data.json"></div>
+        <div class="field"><label>访问令牌（仅存在本机，不会上传）</label><input type="password" id="cToken" placeholder="github_pat_..."></div>
+      </div>
+      <div class="row-actions">
+        <button class="primary" id="saveCfgBtn">保存配置</button>
+        <button id="pullBtn">从 GitHub 读取数据</button>
+        <button id="localLoadBtn">读取本地 data.json</button>
+      </div>
+      <div class="help" style="margin-top:12px">
+        令牌请在 GitHub → Settings → Developer settings → <b>Fine-grained tokens</b> 创建，<b>仅授权这一个仓库</b>，
+        权限只勾选 <code>Contents: Read and write</code>。令牌保存在本浏览器的 localStorage，不会写进仓库；
+        换电脑或清理浏览器缓存后需要重新粘贴。<br>
+        本页面不放进公开导航，只能通过这个地址直接访问。
+      </div>
+    </details>
+  </section>
+
+  <section class="panel">
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="筛选档案盒：编号 / 库房 / 排架 / 文件题名" style="flex:1 1 260px">
+      <button id="addBoxBtn">＋ 新增档案盒</button>
+      <button id="exportBtn">导出 JSON</button>
+      <button id="importBtn">导入 JSON</button>
+      <input type="file" id="importFile" accept="application/json,.json" class="hidden">
+      <span class="spacer"></span>
+      <span class="muted small" id="dirtyHint"></span>
+      <button class="primary" id="saveBtn">保存到 GitHub</button>
+    </div>
+    <div class="stat-line">
+      <span>档案盒 <b id="cBoxes">0</b></span>
+      <span>文件 <b id="cItems">0</b></span>
+      <span id="cUpdated"></span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div id="boxes"></div>
+    <div class="empty hidden" id="noBoxes">还没有档案盒，点击上方“新增档案盒”开始。</div>
+  </section>
+
+</main>
+
+<script src="assets/app.js"></script>
+<script>
+(function () {
+  const CFG_KEY = 'archive-cfg-v1';
+  const DRAFT_KEY = 'archive-draft-v1';
+  const $ = function (id) { return document.getElementById(id); };
+
+  const state = {
+    data: { version: 1, updatedAt: '', rooms: [], boxes: [] },
+    sha: null,
+    dirty: false
+  };
+
+  /* ---------- 编解码 ---------- */
+  function b64ToUtf8(b64) {
+    const bin = atob(b64.replace(/\s/g, ''));
+    const bytes = Uint8Array.from(bin, function (c) { return c.charCodeAt(0); });
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+  function utf8ToB64(str) {
+    const bytes = new TextEncoder().encode(str);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+
+  /* ---------- 配置 ---------- */
+  function readCfg() {
+    try { return JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); } catch (e) { return {}; }
+  }
+  function fillCfgForm() {
+    const c = readCfg();
+    $('cOwner').value = c.owner || '';
+    $('cRepo').value = c.repo || '';
+    $('cBranch').value = c.branch || 'main';
+    $('cPath').value = c.path || 'data.json';
+    $('cToken').value = c.token || '';
+    if (c.owner) $('cfgDetails').open = false;
+  }
+  function saveCfg() {
+    const c = {
+      owner: $('cOwner').value.trim(),
+      repo: $('cRepo').value.trim(),
+      branch: $('cBranch').value.trim() || 'main',
+      path: $('cPath').value.trim() || 'data.json',
+      token: $('cToken').value.trim()
+    };
+    if (!c.owner || !c.repo) { banner('请先填写用户名和仓库名', 'err'); return; }
+    localStorage.setItem(CFG_KEY, JSON.stringify(c));
+    banner('配置已保存到本机浏览器', 'ok');
+  }
+
+  function apiUrl(c) {
+    return 'https://api.github.com/repos/' + encodeURIComponent(c.owner) + '/' + encodeURIComponent(c.repo) +
+      '/contents/' + c.path.split('/').map(encodeURIComponent).join('/');
+  }
+  function authHeaders(c) {
+    const h = { 'Accept': 'application/vnd.github+json' };
+    if (c.token) h['Authorization'] = 'Bearer ' + c.token;
+    return h;
+  }
+
+  /* ---------- 提示 ---------- */
+  function banner(msg, kind, extra) {
+    const el = $('banner');
+    el.className = 'banner' + (kind ? ' ' + kind : '');
+    el.innerHTML = '<span>' + App.esc(msg) + '</span>' + (extra || '');
+    el.classList.remove('hidden');
+    if (kind === 'ok') setTimeout(function () { el.classList.add('hidden'); }, 4000);
+  }
+
+  /* ---------- 数据装载 ---------- */
+  function normalize(d) {
+    d = d || {};
+    d.version = d.version || 1;
+    d.boxes = Array.isArray(d.boxes) ? d.boxes : [];
+    d.rooms = Array.isArray(d.rooms) ? d.rooms : [];
+    d.boxes.forEach(function (b) {
+      b.id = b.id || '';
+      b.items = Array.isArray(b.items) ? b.items : [];
+      b.items.forEach(function (it) {
+        it.no = it.no || ''; it.title = it.title || ''; it.year = it.year || '';
+        it.retention = it.retention || ''; it.dept = it.dept || '';
+        it.path = it.path || ''; it.status = it.status || '在架'; it.note = it.note || '';
+      });
+    });
+    return d;
+  }
+
+  function setData(d, keepSha) {
+    state.data = normalize(d);
+    if (!keepSha) state.sha = null;
+    state.dirty = false;
+    renderAll();
+  }
+
+  function loadRemote() {
+    const c = readCfg();
+    if (!c.owner || !c.repo) { banner('请先填写并保存仓库配置', 'err'); return; }
+    banner('正在从 GitHub 读取…');
+    fetch(apiUrl(c) + '?ref=' + encodeURIComponent(c.branch || 'main'), { headers: authHeaders(c) })
+      .then(function (r) {
+        if (r.status === 404) throw new Error('仓库里还没有这个文件（首次保存会自动创建）');
+        if (r.status === 401 || r.status === 403) throw new Error('令牌无效或没有该仓库权限');
+        if (!r.ok) throw new Error('读取失败 HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (j) {
+        setData(JSON.parse(b64ToUtf8(j.content)));
+        state.sha = j.sha;
+        banner('已读取仓库最新数据' + (state.data.updatedAt ? '（更新于 ' + state.data.updatedAt + '）' : ''), 'ok');
+      })
+      .catch(function (e) { banner(e.message, 'err'); });
+  }
+
+  function loadLocal() {
+    App.loadData().then(function (d) {
+      state.sha = null;
+      setData(d);
+      banner('已读取同目录的 data.json（未连接 GitHub）', 'ok');
+    }).catch(function (e) { banner(e.message, 'err'); });
+  }
+
+  /* ---------- 渲染 ---------- */
+  function renderAll() {
+    renderStats();
+    renderBoxes();
+    autosaveDraft();
+  }
+
+  function renderStats() {
+    let items = 0;
+    state.data.boxes.forEach(function (b) { items += (b.items || []).length; });
+    $('cBoxes').textContent = state.data.boxes.length;
+    $('cItems').textContent = items;
+    $('cUpdated').textContent = state.data.updatedAt ? '更新于 ' + state.data.updatedAt : '';
+    $('statMeta').textContent = state.data.boxes.length ? '已加载 ' + state.data.boxes.length + ' 个档案盒' : '未加载数据';
+    $('noBoxes').classList.toggle('hidden', state.data.boxes.length > 0);
+    $('dirtyHint').textContent = state.dirty ? '有未保存的修改' : '';
+  }
+
+  function retentionOptions(cur) {
+    const list = App.RETENTIONS.slice();
+    if (cur && list.indexOf(cur) < 0) list.push(cur);
+    return list.map(function (v) {
+      return '<option value="' + App.esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + App.esc(v) + '</option>';
+    }).join('');
+  }
+  function statusOptions(cur) {
+    const list = App.STATUSES.slice();
+    if (cur && list.indexOf(cur) < 0) list.push(cur);
+    return list.map(function (v) {
+      return '<option value="' + App.esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + App.esc(v) + '</option>';
+    }).join('');
+  }
+
+  function renderBoxes() {
+    const container = $('boxes');
+    container.innerHTML = state.data.boxes.map(function (b, bi) {
+      const items = b.items || [];
+      const rows = items.length ? items.map(function (it, ii) {
+        return '<tr>' +
+          '<td class="c-no"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="no" value="' + App.esc(it.no) + '"></td>' +
+          '<td class="c-title"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="title" value="' + App.esc(it.title) + '"></td>' +
+          '<td class="c-year"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="year" value="' + App.esc(it.year) + '"></td>' +
+          '<td><select data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="retention">' + retentionOptions(it.retention) + '</select></td>' +
+          '<td><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="dept" value="' + App.esc(it.dept) + '"></td>' +
+          '<td class="c-path"><input class="w-path" type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="path" value="' + App.esc(it.path) + '" placeholder="\\\\server\\... 或 https://..."></td>' +
+          '<td><select data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="status">' + statusOptions(it.status) + '</select></td>' +
+          '<td><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="note" value="' + App.esc(it.note) + '"></td>' +
+          '<td class="c-op"><button class="ghost" data-act="del-item" data-idx="' + bi + '" data-ii="' + ii + '" title="删除这一件">✕</button></td>' +
+        '</tr>';
+      }).join('') : '<tr><td colspan="9" class="muted small">还没有登记文件。</td></tr>';
+
+      return '<div class="box-card" data-bi="' + bi + '">' +
+        '<div class="box-head">' +
+          '<input class="b-id" type="text" data-idx="' + bi + '" data-field="id" value="' + App.esc(b.id) + '" placeholder="盒编号">' +
+          '<input type="text" data-idx="' + bi + '" data-field="room" value="' + App.esc(b.room || '') + '" placeholder="库房" title="库房">' +
+          '<input type="text" data-idx="' + bi + '" data-field="row" value="' + App.esc(b.row || '') + '" placeholder="排" title="排">' +
+          '<input type="text" data-idx="' + bi + '" data-field="shelf" value="' + App.esc(b.shelf || '') + '" placeholder="节" title="节">' +
+          '<input type="text" data-idx="' + bi + '" data-field="layer" value="' + App.esc(b.layer || '') + '" placeholder="层" title="层">' +
+          '<span class="count">' + items.length + ' 件</span>' +
+          '<span class="grow"></span>' +
+          '<a class="btn" style="padding:5px 10px;font-size:12px" href="index.html?box=' + encodeURIComponent(b.id) + '" target="_blank">查看</a>' +
+          '<button data-act="del-box" data-idx="' + bi + '" style="padding:5px 10px;font-size:12px">删除盒</button>' +
+        '</div>' +
+        '<div class="box-body">' +
+          '<div style="overflow-x:auto">' +
+            '<table class="items"><thead><tr>' +
+              '<th>档号</th><th>题名</th><th>年度</th><th>保管期限</th><th>部门</th><th>电子路径</th><th>状态</th><th>备注</th><th></th>' +
+            '</tr></thead><tbody>' + rows + '</tbody></table>' +
+          '</div>' +
+          '<div class="row-actions">' +
+            '<button data-act="add-item" data-idx="' + bi + '" style="font-size:12px">＋ 添加一件</button>' +
+            '<input class="b-note" type="text" data-idx="' + bi + '" data-field="note" value="' + App.esc(b.note || '') + '" placeholder="盒备注（选填）">' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    applyFilter();
+  }
+
+  function applyFilter() {
+    const terms = $('q').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const cards = $('boxes').querySelectorAll('.box-card');
+    let visible = 0;
+    cards.forEach(function (card) {
+      const bi = +card.dataset.bi;
+      const b = state.data.boxes[bi];
+      const hay = [b.id, b.room, b.row, b.shelf, b.layer, b.note]
+        .concat((b.items || []).map(function (i) { return i.title + ' ' + i.no + ' ' + i.dept; }))
+        .filter(Boolean).join(' ').toLowerCase();
+      const show = !terms.length || terms.every(function (t) { return hay.indexOf(t) >= 0; });
+      card.classList.toggle('hidden', !show);
+      if (show) visible++;
+    });
+    $('noBoxes').classList.toggle('hidden', state.data.boxes.length > 0);
+  }
+
+  /* ---------- 修改 ---------- */
+  function markDirty() {
+    state.dirty = true;
+    $('dirtyHint').textContent = '有未保存的修改';
+    autosaveDraft();
+    renderStats();
+  }
+
+  let draftTimer = null;
+  function autosaveDraft() {
+    clearTimeout(draftTimer);
+    if (!state.dirty) return;
+    draftTimer = setTimeout(function () {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), data: state.data }));
+      } catch (e) { /* 配额不足则忽略 */ }
+    }, 600);
+  }
+
+  function bindEditor() {
+    const container = $('boxes');
+
+    const onEdit = function (e) {
+      const el = e.target;
+      if (!el.dataset || (!el.dataset.field && !el.dataset.ifield)) return;
+      const bi = +el.dataset.idx;
+      const box = state.data.boxes[bi];
+      if (!box) return;
+      if (el.dataset.ifield) {
+        const ii = +el.dataset.ii;
+        if (!box.items[ii]) return;
+        box.items[ii][el.dataset.ifield] = el.value;
+      } else {
+        box[el.dataset.field] = el.value;
+      }
+      markDirty();
+    };
+    container.addEventListener('input', onEdit);
+    container.addEventListener('change', function (e) {
+      if (e.target.tagName === 'SELECT') onEdit(e);
+    });
+
+    container.addEventListener('click', function (e) {
+      const btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      const bi = +btn.dataset.idx;
+      const act = btn.dataset.act;
+      const box = state.data.boxes[bi];
+      if (!box) return;
+
+      if (act === 'add-item') {
+        box.items = box.items || [];
+        box.items.push({ no: '', title: '', year: '', retention: '永久', dept: '', path: '', status: '在架', note: '' });
+        renderBoxes();
+        const card = container.querySelector('.box-card[data-bi="' + bi + '"]');
+        if (card) {
+          card.classList.remove('hidden');
+          const rows = card.querySelectorAll('tbody tr');
+          const last = rows[rows.length - 1];
+          if (last) last.querySelector('input').focus();
+        }
+        markDirty();
+      } else if (act === 'del-item') {
+        const ii = +btn.dataset.ii;
+        if (!box.items[ii]) return;
+        const name = box.items[ii].title || box.items[ii].no || '这一件';
+        if (!confirm('删除「' + name + '」？')) return;
+        box.items.splice(ii, 1);
+        renderBoxes();
+        markDirty();
+      } else if (act === 'del-box') {
+        if (!confirm('删除档案盒「' + (box.id || '未编号') + '」及其 ' + (box.items || []).length + ' 件记录？')) return;
+        state.data.boxes.splice(bi, 1);
+        renderBoxes();
+        markDirty();
+      }
+    });
+  }
+
+  function addBox() {
+    let n = state.data.boxes.length + 1, id = '';
+    do { id = 'NEW-' + String(n).padStart(3, '0'); n++; }
+    while (state.data.boxes.some(function (b) { return b.id === id; }));
+    state.data.boxes.unshift({ id: id, room: '', row: '', shelf: '', layer: '', note: '', items: [] });
+    renderBoxes();
+    const first = $('boxes').querySelector('.box-card .b-id');
+    if (first) { first.focus(); first.select(); }
+    markDirty();
+    window.scrollTo({ top: 0 });
+  }
+
+  /* ---------- 校验与保存 ---------- */
+  function validate() {
+    const errs = [];
+    const seen = {};
+    state.data.boxes.forEach(function (b, i) {
+      const id = (b.id || '').trim();
+      if (!id) errs.push('第 ' + (i + 1) + ' 个档案盒没有编号');
+      else if (seen[id]) errs.push('档案盒编号重复：' + id);
+      seen[id] = true;
+      (b.items || []).forEach(function (it) {
+        if (!it.title && !it.no) errs.push('档案盒 ' + (id || (i + 1)) + ' 中有一件既无档号也无题名');
+      });
+    });
+    return errs;
+  }
+
+  function serialize() {
+    const rooms = [];
+    state.data.boxes.forEach(function (b) {
+      if (b.room && rooms.indexOf(b.room) < 0) rooms.push(b.room);
+    });
+    const d = new Date();
+    const stamp = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+    return {
+      version: 1,
+      updatedAt: stamp,
+      rooms: rooms,
+      boxes: state.data.boxes.map(function (b) {
+        return {
+          id: String(b.id || '').trim(),
+          room: b.room || '', row: b.row || '', shelf: b.shelf || '', layer: b.layer || '', note: b.note || '',
+          items: (b.items || []).filter(function (it) {
+            return it && (it.no || it.title || it.path);
+          }).map(function (it) {
+            return {
+              no: it.no || '', title: it.title || '', year: it.year || '',
+              retention: it.retention || '', dept: it.dept || '',
+              path: it.path || '', status: it.status || '在架', note: it.note || ''
+            };
+          })
+        };
+      })
+    };
+  }
+
+  function saveRemote() {
+    const c = readCfg();
+    if (!c.owner || !c.repo || !c.token) {
+      banner('缺少仓库配置或访问令牌，无法保存。也可以先“导出 JSON”再手动上传。', 'err');
+      $('cfgDetails').open = true;
+      return;
+    }
+    const errs = validate();
+    if (errs.length) {
+      banner('保存前请修正：' + errs.slice(0, 3).join('；') + (errs.length > 3 ? ' 等 ' + errs.length + ' 项' : ''), 'err');
+      return;
+    }
+
+    const payload = serialize();
+    const text = JSON.stringify(payload, null, 2);
+    const msg = '更新档案数据 ' + payload.updatedAt;
+
+    const doPut = function () {
+      const body = {
+        message: msg,
+        content: utf8ToB64(text),
+        branch: c.branch || 'main'
+      };
+      if (state.sha) body.sha = state.sha;
+      return fetch(apiUrl(c), {
+        method: 'PUT',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders(c)),
+        body: JSON.stringify(body)
+      });
+    };
+
+    const ensureSha = function () {
+      if (state.sha) return Promise.resolve();
+      return fetch(apiUrl(c) + '?ref=' + encodeURIComponent(c.branch || 'main'), { headers: authHeaders(c) })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) { if (j && j.sha) state.sha = j.sha; });
+    };
+
+    banner('正在保存…');
+    ensureSha()
+      .then(doPut)
+      .then(function (r) {
+        if (r.status === 409) throw new Error('仓库里文件已被改动，请点“从 GitHub 读取数据”后再改');
+        if (r.status === 401 || r.status === 403) throw new Error('令牌无效或权限不足（需 Contents: Read and write）');
+        if (!r.ok) return r.json().then(function (j) { throw new Error(j.message || ('HTTP ' + r.status)); });
+        return r.json();
+      })
+      .then(function (j) {
+        state.sha = j.content.sha;
+        state.data.updatedAt = payload.updatedAt;
+        state.dirty = false;
+        localStorage.removeItem(DRAFT_KEY);
+        renderStats();
+        banner('已保存到 GitHub，约半分钟后网页生效。', 'ok', j.commit && j.commit.html_url
+          ? '<a href="' + j.commit.html_url + '" target="_blank" rel="noopener">查看提交</a>' : '');
+      })
+      .catch(function (e) { banner('保存失败：' + e.message, 'err'); });
+  }
+
+  function exportJson() {
+    const payload = serialize();
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'data.json';
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    App.toast('已导出 data.json', 'ok');
+  }
+
+  function importJson(file) {
+    const reader = new FileReader();
+    reader.onload = function () {
+      try {
+        const d = JSON.parse(reader.result);
+        if (!Array.isArray(d.boxes)) throw new Error('文件里没有 boxes 数组');
+        setData(d);
+        state.dirty = true;
+        $('dirtyHint').textContent = '有未保存的修改';
+        banner('已导入 ' + d.boxes.length + ' 个档案盒，记得保存', 'ok');
+      } catch (e) {
+        banner('导入失败：' + e.message, 'err');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  /* ---------- 草稿 ---------- */
+  function checkDraft() {
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) {}
+    if (!d || !d.data) return;
+    const when = new Date(d.at).toLocaleString('zh-CN');
+    banner('发现本机草稿（' + when + '），可能是上次未保存的修改。',
+      '', '<button id="restoreDraft">恢复草稿</button><button id="dropDraft">丢弃</button>');
+    $('restoreDraft').onclick = function () {
+      setData(d.data);
+      state.dirty = true;
+      $('dirtyHint').textContent = '有未保存的修改';
+      banner('已恢复草稿', 'ok');
+    };
+    $('dropDraft').onclick = function () {
+      localStorage.removeItem(DRAFT_KEY);
+      $('banner').classList.add('hidden');
+    };
+  }
+
+  /* ---------- 事件绑定 ---------- */
+  $('saveCfgBtn').addEventListener('click', saveCfg);
+  $('pullBtn').addEventListener('click', loadRemote);
+  $('localLoadBtn').addEventListener('click', loadLocal);
+  $('addBoxBtn').addEventListener('click', addBox);
+  $('saveBtn').addEventListener('click', saveRemote);
+  $('exportBtn').addEventListener('click', exportJson);
+  $('importBtn').addEventListener('click', function () { $('importFile').click(); });
+  $('importFile').addEventListener('change', function (e) {
+    if (e.target.files[0]) importJson(e.target.files[0]);
+    e.target.value = '';
+  });
+  $('q').addEventListener('input', applyFilter);
+  window.addEventListener('beforeunload', function (e) {
+    if (state.dirty) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  bindEditor();
+  fillCfgForm();
+  setData({ version: 1, updatedAt: '', rooms: [], boxes: [] });
+  renderStats();
+  loadLocal();
+  setTimeout(checkDraft, 1200);
+})();
+</script>
+</body>
+</html>
