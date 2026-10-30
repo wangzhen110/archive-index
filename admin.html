@@ -39,6 +39,7 @@
       </div>
       <div class="help" style="margin-top:12px">
         页面已内置仓库与令牌，打开即可读写，不用再配置。<br>
+        <b>改动会在停止编辑约 5 秒后自动保存到 GitHub</b>（右上角显示保存状态）；也可以点「立即保存」马上提交。<br>
         如需更换令牌：在 GitHub → Settings → Developer settings → <b>Fine-grained tokens</b> 新建，
         <b>仅授权这一个仓库</b>，权限只勾 <code>Contents: Read and write</code>，粘贴到上方后点保存即可覆盖。<br>
         本页面不放进公开导航，只能通过这个地址直接访问。
@@ -55,7 +56,8 @@
       <input type="file" id="importFile" accept="application/json,.json" class="hidden">
       <span class="spacer"></span>
       <span class="muted small" id="dirtyHint"></span>
-      <button class="primary" id="saveBtn">保存到 GitHub</button>
+      <span class="muted small" id="saveState"></span>
+      <button class="primary" id="saveBtn">立即保存</button>
     </div>
     <div class="stat-line">
       <span>档案盒 <b id="cBoxes">0</b></span>
@@ -82,7 +84,9 @@
   const state = {
     data: { version: 2, updatedAt: '', rooms: [], boxes: [] },
     sha: null,
-    dirty: false
+    dirty: false,
+    saving: false,
+    pendingSave: false
   };
   const openFolders = new Set();
 
@@ -196,6 +200,7 @@
     state.data = normalize(d);
     if (!keepSha) state.sha = null;
     state.dirty = false;
+    setSaveState('');
     renderAll();
   }
 
@@ -245,7 +250,7 @@
     $('cUpdated').textContent = state.data.updatedAt ? '更新于 ' + state.data.updatedAt : '';
     $('statMeta').textContent = state.data.boxes.length ? '已加载 ' + state.data.boxes.length + ' 个档案盒' : '未加载数据';
     $('noBoxes').classList.toggle('hidden', state.data.boxes.length > 0);
-    $('dirtyHint').textContent = state.dirty ? '有未保存的修改' : '';
+    $('dirtyHint').textContent = state.dirty ? '未保存' : '';
   }
 
   function renderBoxes() {
@@ -340,9 +345,26 @@
 
   function markDirty() {
     state.dirty = true;
-    $('dirtyHint').textContent = '有未保存的修改';
+    $('dirtyHint').textContent = '未保存';
+    setSaveState('');
     autosaveDraft();
     renderStats();
+    scheduleSave();
+  }
+
+  let saveTimer = null;
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      if (state.dirty) saveRemote(true);
+    }, 5000);
+  }
+
+  function setSaveState(msg, kind) {
+    const el = $('saveState');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.style.color = kind === 'err' ? 'var(--danger)' : (kind === 'ok' ? '#15803d' : '');
   }
 
   let draftTimer = null;
@@ -519,18 +541,24 @@
     };
   }
 
-  function saveRemote() {
+  function saveRemote(auto) {
     const c = readCfg();
     if (!c.owner || !c.repo || !c.token) {
+      if (auto) { setSaveState('缺少仓库配置，未自动保存', 'err'); return; }
       banner('缺少仓库配置或访问令牌，无法保存。也可以先“导出 JSON”再手动上传。', 'err');
       $('cfgDetails').open = true;
       return;
     }
     const errs = validate();
     if (errs.length) {
-      banner('保存前请修正：' + errs.slice(0, 3).join('；') + (errs.length > 3 ? ' 等 ' + errs.length + ' 项' : ''), 'err');
+      setSaveState('有 ' + errs.length + ' 项待修正，暂未保存', 'err');
+      if (!auto) {
+        banner('保存前请修正：' + errs.slice(0, 3).join('；') + (errs.length > 3 ? ' 等 ' + errs.length + ' 项' : ''), 'err');
+      }
       return;
     }
+    if (state.saving) { state.pendingSave = true; return; }
+    state.saving = true;
 
     const payload = serialize();
     const text = JSON.stringify(payload, null, 2);
@@ -553,7 +581,7 @@
         .then(function (j) { if (j && j.sha) state.sha = j.sha; });
     };
 
-    banner('正在保存…');
+    setSaveState(auto ? '正在自动保存…' : '正在保存…');
     ensureSha()
       .then(doPut)
       .then(function (r) {
@@ -566,12 +594,24 @@
         state.sha = j.content.sha;
         state.data.updatedAt = payload.updatedAt;
         state.dirty = false;
+        state.saving = false;
         localStorage.removeItem(DRAFT_KEY);
         renderStats();
-        banner('已保存到 GitHub，约半分钟后网页生效。', 'ok', j.commit && j.commit.html_url
-          ? '<a href="' + j.commit.html_url + '" target="_blank" rel="noopener">查看提交</a>' : '');
+        setSaveState('已保存', 'ok');
+        if (!auto) {
+          banner('已保存到 GitHub，约半分钟后网页生效。', 'ok', j.commit && j.commit.html_url
+            ? '<a href="' + j.commit.html_url + '" target="_blank" rel="noopener">查看提交</a>' : '');
+        }
+        if (state.pendingSave) {
+          state.pendingSave = false;
+          saveRemote(true);
+        }
       })
-      .catch(function (e) { banner('保存失败：' + e.message, 'err'); });
+      .catch(function (e) {
+        state.saving = false;
+        setSaveState('保存失败：' + e.message, 'err');
+        banner('保存失败：' + e.message, 'err');
+      });
   }
 
   function exportJson() {
@@ -624,7 +664,7 @@
   $('pullBtn').addEventListener('click', loadRemote);
   $('localLoadBtn').addEventListener('click', loadLocal);
   $('addBoxBtn').addEventListener('click', addBox);
-  $('saveBtn').addEventListener('click', saveRemote);
+  $('saveBtn').addEventListener('click', function () { saveRemote(false); });
   $('exportBtn').addEventListener('click', exportJson);
   $('importBtn').addEventListener('click', function () { $('importFile').click(); });
   $('importFile').addEventListener('change', function (e) {
