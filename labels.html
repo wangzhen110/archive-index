@@ -59,7 +59,9 @@
 
   function boxText(b) {
     return [b.id, b.room, b.row, b.shelf, b.layer, b.note]
-      .concat((b.items || []).map(function (i) { return i.title; }))
+      .concat((b.folders || []).map(function (f) {
+        return [f.name, f.path, (f.files || []).map(function (it) { return it.name; }).join(' ')].join(' ');
+      }))
       .filter(Boolean).join(' ').toLowerCase();
   }
 
@@ -76,7 +78,7 @@
         '<input type="checkbox" data-id="' + App.esc(b.id) + '"' + (selected.has(b.id) ? ' checked' : '') + '>' +
         '<span class="chip">' + App.esc(b.id) + '</span>' +
         '<span>' + App.esc(App.location(b) || '（未登记位置）') + '</span>' +
-        '<span class="muted small" style="margin-left:auto">' + App.boxItemCount(b) + ' 件</span>' +
+        '<span class="muted small" style="margin-left:auto">' + App.boxFolderCount(b) + ' 夹 / ' + App.boxFileCount(b) + ' 文件</span>' +
       '</label>';
     }).join('') : '<div class="empty">没有匹配的档案盒。</div>';
   }
@@ -93,7 +95,7 @@
         '<div class="info">' +
           '<div class="code">' + App.esc(b.id) + '</div>' +
           '<div class="where">' + App.locParts(b).map(App.esc).join('<br>') + '</div>' +
-          '<div class="cnt">' + App.boxItemCount(b) + ' 件</div>' +
+          '<div class="cnt">' + App.boxFolderCount(b) + ' 个文件夹 · ' + App.boxFileCount(b) + ' 个文件</div>' +
         '</div>' +
       '</div>';
     }).join('');
