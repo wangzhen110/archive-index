@@ -201,15 +201,15 @@
             : '<span class="mono small" title="' + App.esc(it.path) + '">' + mark(App.fileNameFromPath(it.path), terms) + '</span>')
         : '<span class="muted">—</span>';
       return '<tr data-box="' + App.esc(b.id) + '">' +
-        '<td class="nowrap"><span class="mono">' + mark(it.no || '（未编号）', terms) + '</span></td>' +
-        '<td>' + mark(it.title || '', terms) + '</td>' +
-        '<td class="nowrap">' + mark(it.year || '', terms) + '</td>' +
-        '<td class="nowrap">' + mark(it.retention || '', terms) + '</td>' +
-        '<td class="nowrap">' + mark(it.dept || '', terms) + '</td>' +
-        '<td class="loc"><span class="chip">' + mark(b.id, terms) + '</span> ' +
+        '<td class="nowrap" data-label="档号"><span class="mono">' + mark(it.no || '（未编号）', terms) + '</span></td>' +
+        '<td data-label="题名">' + mark(it.title || '', terms) + '</td>' +
+        '<td class="nowrap" data-label="年度">' + mark(it.year || '', terms) + '</td>' +
+        '<td class="nowrap" data-label="保管期限">' + mark(it.retention || '', terms) + '</td>' +
+        '<td class="nowrap" data-label="部门">' + mark(it.dept || '', terms) + '</td>' +
+        '<td class="loc" data-label="存放位置"><span class="chip">' + mark(b.id, terms) + '</span> ' +
           mark(App.location(b), terms) + '</td>' +
-        '<td>' + pathCell + '</td>' +
-        '<td class="nowrap"><span class="' + statusCls + '">' + mark(it.status || '在架', terms) + '</span></td>' +
+        '<td data-label="电子文件">' + pathCell + '</td>' +
+        '<td class="nowrap" data-label="状态"><span class="' + statusCls + '">' + mark(it.status || '在架', terms) + '</span></td>' +
       '</tr>';
     }).join('');
 
@@ -238,14 +238,14 @@
             : '<span class="mono small">' + App.esc(it.path) + '</span>')
         : '<span class="muted">—</span>';
       return '<tr>' +
-        '<td class="nowrap"><span class="mono">' + App.esc(it.no || '（未编号）') + '</span></td>' +
-        '<td>' + App.esc(it.title || '') + '</td>' +
-        '<td class="nowrap">' + App.esc(it.year || '') + '</td>' +
-        '<td class="nowrap">' + App.esc(it.retention || '') + '</td>' +
-        '<td class="nowrap">' + App.esc(it.dept || '') + '</td>' +
-        '<td>' + pathCell + '</td>' +
-        '<td class="nowrap"><span class="' + statusCls + '">' + App.esc(it.status || '在架') + '</span></td>' +
-        '<td class="small muted">' + App.esc(it.note || '') + '</td>' +
+        '<td class="nowrap" data-label="档号"><span class="mono">' + App.esc(it.no || '（未编号）') + '</span></td>' +
+        '<td data-label="题名">' + App.esc(it.title || '') + '</td>' +
+        '<td class="nowrap" data-label="年度">' + App.esc(it.year || '') + '</td>' +
+        '<td class="nowrap" data-label="保管期限">' + App.esc(it.retention || '') + '</td>' +
+        '<td class="nowrap" data-label="部门">' + App.esc(it.dept || '') + '</td>' +
+        '<td data-label="电子文件">' + pathCell + '</td>' +
+        '<td class="nowrap" data-label="状态"><span class="' + statusCls + '">' + App.esc(it.status || '在架') + '</span></td>' +
+        '<td class="small muted" data-label="备注">' + App.esc(it.note || '') + '</td>' +
       '</tr>';
     }).join('') : '<tr><td colspan="8" class="muted small">这个盒还没有登记文件。</td></tr>';
 
