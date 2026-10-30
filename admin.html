@@ -258,14 +258,14 @@
       const items = b.items || [];
       const rows = items.length ? items.map(function (it, ii) {
         return '<tr>' +
-          '<td class="c-no"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="no" value="' + App.esc(it.no) + '"></td>' +
-          '<td class="c-title"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="title" value="' + App.esc(it.title) + '"></td>' +
-          '<td class="c-year"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="year" value="' + App.esc(it.year) + '"></td>' +
-          '<td><select data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="retention">' + retentionOptions(it.retention) + '</select></td>' +
-          '<td><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="dept" value="' + App.esc(it.dept) + '"></td>' +
-          '<td class="c-path"><input class="w-path" type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="path" value="' + App.esc(it.path) + '" placeholder="\\\\server\\... 或 https://..."></td>' +
-          '<td><select data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="status">' + statusOptions(it.status) + '</select></td>' +
-          '<td><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="note" value="' + App.esc(it.note) + '"></td>' +
+          '<td class="c-no" data-label="档号"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="no" value="' + App.esc(it.no) + '"></td>' +
+          '<td class="c-title" data-label="题名"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="title" value="' + App.esc(it.title) + '"></td>' +
+          '<td class="c-year" data-label="年度"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="year" value="' + App.esc(it.year) + '"></td>' +
+          '<td data-label="保管期限"><select data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="retention">' + retentionOptions(it.retention) + '</select></td>' +
+          '<td data-label="部门"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="dept" value="' + App.esc(it.dept) + '"></td>' +
+          '<td class="c-path" data-label="电子路径"><input class="w-path" type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="path" value="' + App.esc(it.path) + '" placeholder="\\\\server\\... 或 https://..."></td>' +
+          '<td data-label="状态"><select data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="status">' + statusOptions(it.status) + '</select></td>' +
+          '<td data-label="备注"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="note" value="' + App.esc(it.note) + '"></td>' +
           '<td class="c-op"><button class="ghost" data-act="del-item" data-idx="' + bi + '" data-ii="' + ii + '" title="删除这一件">✕</button></td>' +
         '</tr>';
       }).join('') : '<tr><td colspan="9" class="muted small">还没有登记文件。</td></tr>';
