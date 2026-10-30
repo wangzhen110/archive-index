@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "updatedAt": "2026-10-30",
+  "rooms": [
+    "一号库房",
+    "二号库房"
+  ],
+  "boxes": [
+    {
+      "id": "A-2024-01",
+      "room": "一号库房",
+      "row": "A 排",
+      "shelf": "3 节",
+      "layer": "第 2 层",
+      "note": "财务类，2024 年度",
+      "items": [
+        {
+          "no": "CW-2024-001",
+          "title": "2024 年度审计报告（含附表）",
+          "year": "2024",
+          "retention": "永久",
+          "dept": "财务部",
+          "path": "\\\\fileserver\\archive\\2024\\财务\\审计报告.pdf",
+          "status": "在架",
+          "note": ""
+        },
+        {
+          "no": "CW-2024-002",
+          "title": "2024 年度总账及明细账",
+          "year": "2024",
+          "retention": "30 年",
+          "dept": "财务部",
+          "path": "\\\\fileserver\\archive\\2024\\财务\\账簿\\",
+          "status": "在架",
+          "note": "纸质 3 册"
+        }
+      ]
+    },
+    {
+      "id": "A-2024-02",
+      "room": "一号库房",
+      "row": "A 排",
+      "shelf": "3 节",
+      "layer": "第 3 层",
+      "note": "",
+      "items": [
+        {
+          "no": "HT-2024-001",
+          "title": "重大采购合同（设备类）",
+          "year": "2024",
+          "retention": "30 年",
+          "dept": "采购部",
+          "path": "",
+          "status": "在架",
+          "note": "仅纸质原件"
+        },
+        {
+          "no": "HT-2024-002",
+          "title": "年度框架协议（物流服务）",
+          "year": "2024",
+          "retention": "10 年",
+          "dept": "采购部",
+          "path": "\\\\fileserver\\archive\\2024\\采购\\框架协议\\",
+          "status": "借出",
+          "note": "2026-10-12 借予法务部"
+        }
+      ]
+    },
+    {
+      "id": "B-2023-07",
+      "room": "二号库房",
+      "row": "B 排",
+      "shelf": "1 节",
+      "layer": "第 1 层",
+      "note": "人事类",
+      "items": [
+        {
+          "no": "RS-2023-001",
+          "title": "2023 年员工劳动合同（第一批）",
+          "year": "2023",
+          "retention": "30 年",
+          "dept": "人力资源部",
+          "path": "\\\\fileserver\\hr\\contracts\\2023\\",
+          "status": "在架",
+          "note": ""
+        },
+        {
+          "no": "RS-2023-002",
+          "title": "2023 年度绩效考核汇总",
+          "year": "2023",
+          "retention": "10 年",
+          "dept": "人力资源部",
+          "path": "\\\\fileserver\\hr\\performance\\2023\\",
+          "status": "在架",
+          "note": ""
+        }
+      ]
+    }
+  ]
+}
