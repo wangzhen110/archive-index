@@ -147,18 +147,6 @@ button.ghost { border-color: transparent; background: transparent; color: var(--
 button.ghost:hover { background: var(--line-soft); color: var(--text); }
 button:disabled { opacity: .5; cursor: not-allowed; }
 
-.copy-btn {
-  flex: 0 0 auto;
-  height: 26px;
-  padding: 0 9px;
-  font-size: 11.5px;
-  border-radius: 7px;
-  border: 1px solid var(--line);
-  background: #fff;
-  color: var(--accent);
-}
-.copy-btn:hover { background: var(--accent-soft); border-color: #c9dbfb; color: var(--accent-deep); }
-
 /* ---------- 搜索区 ---------- */
 .search-row {
   display: flex;
@@ -299,14 +287,7 @@ mark { background: #fff2b8; color: inherit; padding: 0 2px; border-radius: 3px; 
 }
 .folder-row-head:hover { background: #f8faff; }
 .folder-row-head .f-name { font-size: 14.5px; font-weight: 600; }
-.folder-row-head .f-path {
-  flex: 1 1 220px;
-  min-width: 0;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+.folder-row-head .f-note { color: var(--muted); font-size: 12px; }
 .folder-row.open > .folder-row-head .caret::before { transform: rotate(45deg); }
 .folder-row-body {
   display: none;
@@ -488,9 +469,8 @@ mark { background: #fff2b8; color: inherit; padding: 0 2px; border-radius: 3px; 
   transition: transform .18s ease;
 }
 .folder-card.open > .folder-head .folder-toggle::before { transform: rotate(45deg); }
-.folder-head input.f-name { flex: 1 1 200px; font-weight: 600; height: 34px; font-size: 13px; }
-.folder-head input.f-path { flex: 1 1 260px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; height: 34px; }
-.folder-head input.f-note { flex: 1 1 140px; height: 34px; font-size: 12.5px; }
+.folder-head input.f-name { flex: 1 1 240px; font-weight: 600; height: 34px; font-size: 13px; }
+.folder-head input.f-note { flex: 1 1 160px; height: 34px; font-size: 12.5px; }
 .folder-head .count { color: var(--muted); font-size: 12px; }
 .folder-head button:not(.folder-toggle) { height: 30px; padding: 0 10px; font-size: 12px; }
 .folder-card > .folder-body { display: none; border-top: 1px dashed var(--line); background: #fbfcfe; padding: 8px 10px 10px; }
@@ -598,7 +578,7 @@ table.grid th { color: var(--muted); font-weight: 500; font-size: 12px; white-sp
   .box-group-head .box-open { margin-left: 0; }
   .box-group-body { padding: 8px; }
   .folder-row-head { padding: 10px; }
-  .folder-row-head .f-path { flex: 1 1 100%; white-space: normal; word-break: break-all; }
+  .folder-row-head .f-note { flex: 1 1 100%; }
   .file-line { padding-left: 24px; }
 
   .detail-head { gap: 10px; }
@@ -631,7 +611,7 @@ table.grid th { color: var(--muted); font-weight: 500; font-size: 12px; white-sp
 
   .box-head input, .box-head input.b-id { width: calc(50% - 6px); }
   .folder-head input.f-name { flex: 1 1 calc(100% - 40px); }
-  .folder-head input.f-path, .folder-head input.f-note { flex: 1 1 100%; }
+  .folder-head input.f-note { flex: 1 1 100%; }
   .folder-head button:not(.folder-toggle) { flex: 1 1 100%; }
   .folder-body { padding: 6px 8px 8px; }
   .row-actions input.b-note { min-width: 0; flex: 1 1 100%; }
