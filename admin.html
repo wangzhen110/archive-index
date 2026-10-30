@@ -24,7 +24,7 @@
 
   <section class="panel">
     <details id="cfgDetails">
-      <summary style="cursor:pointer;font-weight:600">GitHub 仓库配置（只需设置一次，存在本机浏览器）</summary>
+      <summary style="cursor:pointer;font-weight:600">GitHub 仓库配置（已内置，一般不用动）</summary>
       <div class="cfg-grid" style="margin-top:14px">
         <div class="field"><label>用户名 / 组织</label><input type="text" id="cOwner" placeholder="例如 zhangsan"></div>
         <div class="field"><label>仓库名</label><input type="text" id="cRepo" placeholder="例如 archive-index"></div>
@@ -48,7 +48,7 @@
 
   <section class="panel">
     <div class="toolbar">
-      <input type="search" id="q" placeholder="筛选档案盒：编号 / 库房 / 排架 / 文件题名" style="flex:1 1 260px">
+      <input type="search" id="q" placeholder="筛选：盒编号 / 库房 / 文件夹名 / 文件名" style="flex:1 1 260px">
       <button id="addBoxBtn">＋ 新增档案盒</button>
       <button id="exportBtn">导出 JSON</button>
       <button id="importBtn">导入 JSON</button>
@@ -59,7 +59,8 @@
     </div>
     <div class="stat-line">
       <span>档案盒 <b id="cBoxes">0</b></span>
-      <span>文件 <b id="cItems">0</b></span>
+      <span>文件夹 <b id="cFolders">0</b></span>
+      <span>文件 <b id="cFiles">0</b></span>
       <span id="cUpdated"></span>
     </div>
   </section>
@@ -79,7 +80,7 @@
   const $ = function (id) { return document.getElementById(id); };
 
   const state = {
-    data: { version: 1, updatedAt: '', rooms: [], boxes: [] },
+    data: { version: 2, updatedAt: '', rooms: [], boxes: [] },
     sha: null,
     dirty: false
   };
@@ -170,16 +171,21 @@
   /* ---------- 数据装载 ---------- */
   function normalize(d) {
     d = d || {};
-    d.version = d.version || 1;
+    d.version = 2;
     d.boxes = Array.isArray(d.boxes) ? d.boxes : [];
     d.rooms = Array.isArray(d.rooms) ? d.rooms : [];
     d.boxes.forEach(function (b) {
       b.id = b.id || '';
-      b.items = Array.isArray(b.items) ? b.items : [];
-      b.items.forEach(function (it) {
-        it.no = it.no || ''; it.title = it.title || ''; it.year = it.year || '';
-        it.retention = it.retention || ''; it.dept = it.dept || '';
-        it.path = it.path || ''; it.status = it.status || '在架'; it.note = it.note || '';
+      b.folders = Array.isArray(b.folders) ? b.folders : [];
+      b.folders.forEach(function (f) {
+        f.name = f.name || '';
+        f.path = f.path || '';
+        f.note = f.note || '';
+        f.files = Array.isArray(f.files) ? f.files : [];
+        f.files.forEach(function (it) {
+          it.name = it.name || '';
+          it.note = it.note || '';
+        });
       });
     });
     return d;
@@ -227,48 +233,50 @@
   }
 
   function renderStats() {
-    let items = 0;
-    state.data.boxes.forEach(function (b) { items += (b.items || []).length; });
+    let folders = 0, files = 0;
+    state.data.boxes.forEach(function (b) {
+      folders += (b.folders || []).length;
+      (b.folders || []).forEach(function (f) { files += (f.files || []).length; });
+    });
     $('cBoxes').textContent = state.data.boxes.length;
-    $('cItems').textContent = items;
+    $('cFolders').textContent = folders;
+    $('cFiles').textContent = files;
     $('cUpdated').textContent = state.data.updatedAt ? '更新于 ' + state.data.updatedAt : '';
     $('statMeta').textContent = state.data.boxes.length ? '已加载 ' + state.data.boxes.length + ' 个档案盒' : '未加载数据';
     $('noBoxes').classList.toggle('hidden', state.data.boxes.length > 0);
     $('dirtyHint').textContent = state.dirty ? '有未保存的修改' : '';
   }
 
-  function retentionOptions(cur) {
-    const list = App.RETENTIONS.slice();
-    if (cur && list.indexOf(cur) < 0) list.push(cur);
-    return list.map(function (v) {
-      return '<option value="' + App.esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + App.esc(v) + '</option>';
-    }).join('');
-  }
-  function statusOptions(cur) {
-    const list = App.STATUSES.slice();
-    if (cur && list.indexOf(cur) < 0) list.push(cur);
-    return list.map(function (v) {
-      return '<option value="' + App.esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + App.esc(v) + '</option>';
-    }).join('');
-  }
-
   function renderBoxes() {
     const container = $('boxes');
     container.innerHTML = state.data.boxes.map(function (b, bi) {
-      const items = b.items || [];
-      const rows = items.length ? items.map(function (it, ii) {
-        return '<tr>' +
-          '<td class="c-no" data-label="档号"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="no" value="' + App.esc(it.no) + '"></td>' +
-          '<td class="c-title" data-label="题名"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="title" value="' + App.esc(it.title) + '"></td>' +
-          '<td class="c-year" data-label="年度"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="year" value="' + App.esc(it.year) + '"></td>' +
-          '<td data-label="保管期限"><select data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="retention">' + retentionOptions(it.retention) + '</select></td>' +
-          '<td data-label="部门"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="dept" value="' + App.esc(it.dept) + '"></td>' +
-          '<td class="c-path" data-label="电子路径"><input class="w-path" type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="path" value="' + App.esc(it.path) + '" placeholder="\\\\server\\... 或 https://..."></td>' +
-          '<td data-label="状态"><select data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="status">' + statusOptions(it.status) + '</select></td>' +
-          '<td data-label="备注"><input type="text" data-idx="' + bi + '" data-ii="' + ii + '" data-ifield="note" value="' + App.esc(it.note) + '"></td>' +
-          '<td class="c-op"><button class="ghost" data-act="del-item" data-idx="' + bi + '" data-ii="' + ii + '" title="删除这一件">✕</button></td>' +
-        '</tr>';
-      }).join('') : '<tr><td colspan="9" class="muted small">还没有登记文件。</td></tr>';
+      const folders = b.folders || [];
+      let fileCount = 0;
+      folders.forEach(function (f) { fileCount += (f.files || []).length; });
+
+      const folderHtml = folders.map(function (f, fi) {
+        const files = f.files || [];
+        const rows = files.length ? files.map(function (it, ii) {
+          return '<tr>' +
+            '<td class="c-name" data-label="文件名">' +
+              '<input type="text" data-fi="' + fi + '" data-ii="' + ii + '" data-if="name" value="' + App.esc(it.name) + '"></td>' +
+            '<td data-label="备注"><input type="text" data-fi="' + fi + '" data-ii="' + ii + '" data-if="note" value="' + App.esc(it.note) + '"></td>' +
+            '<td class="c-op"><button class="ghost" data-act="del-file" data-fi="' + fi + '" data-ii="' + ii + '" title="删除这个文件">✕</button></td>' +
+          '</tr>';
+        }).join('') : '<tr><td colspan="3" class="muted small">这个文件夹里还没有文件。</td></tr>';
+
+        return '<div class="folder-card" data-fi="' + fi + '">' +
+          '<div class="folder-head">' +
+            '<input class="f-name" type="text" data-fi="' + fi + '" data-ff="name" value="' + App.esc(f.name) + '" placeholder="文件夹名，例如 2024 年度审计">' +
+            '<input class="f-path" type="text" data-fi="' + fi + '" data-ff="path" value="' + App.esc(f.path) + '" placeholder="电子路径，例如 \\\\fileserver\\archive\\2024\\财务\\">' +
+            '<input class="f-note" type="text" data-fi="' + fi + '" data-ff="note" value="' + App.esc(f.note) + '" placeholder="备注（选填）">' +
+            '<button data-act="del-folder" data-fi="' + fi + '" style="padding:5px 10px;font-size:12px">删除文件夹</button>' +
+          '</div>' +
+          '<table class="items"><thead><tr><th>文件名</th><th>备注</th><th></th></tr></thead>' +
+            '<tbody>' + rows + '</tbody></table>' +
+          '<div class="row-actions"><button data-act="add-file" data-fi="' + fi + '" style="font-size:12px">＋ 添加文件</button></div>' +
+        '</div>';
+      }).join('');
 
       return '<div class="box-card" data-bi="' + bi + '">' +
         '<div class="box-head">' +
@@ -277,19 +285,15 @@
           '<input type="text" data-idx="' + bi + '" data-field="row" value="' + App.esc(b.row || '') + '" placeholder="排" title="排">' +
           '<input type="text" data-idx="' + bi + '" data-field="shelf" value="' + App.esc(b.shelf || '') + '" placeholder="节" title="节">' +
           '<input type="text" data-idx="' + bi + '" data-field="layer" value="' + App.esc(b.layer || '') + '" placeholder="层" title="层">' +
-          '<span class="count">' + items.length + ' 件</span>' +
+          '<span class="count">' + folders.length + ' 个文件夹 · ' + fileCount + ' 个文件</span>' +
           '<span class="grow"></span>' +
           '<a class="btn" style="padding:5px 10px;font-size:12px" href="index.html?box=' + encodeURIComponent(b.id) + '" target="_blank">查看</a>' +
           '<button data-act="del-box" data-idx="' + bi + '" style="padding:5px 10px;font-size:12px">删除盒</button>' +
         '</div>' +
         '<div class="box-body">' +
-          '<div style="overflow-x:auto">' +
-            '<table class="items"><thead><tr>' +
-              '<th>档号</th><th>题名</th><th>年度</th><th>保管期限</th><th>部门</th><th>电子路径</th><th>状态</th><th>备注</th><th></th>' +
-            '</tr></thead><tbody>' + rows + '</tbody></table>' +
-          '</div>' +
-          '<div class="row-actions">' +
-            '<button data-act="add-item" data-idx="' + bi + '" style="font-size:12px">＋ 添加一件</button>' +
+          folderHtml +
+          '<div class="row-actions" style="margin-top:10px">' +
+            '<button data-act="add-folder" data-idx="' + bi + '" style="font-size:12px">＋ 添加文件夹</button>' +
             '<input class="b-note" type="text" data-idx="' + bi + '" data-field="note" value="' + App.esc(b.note || '') + '" placeholder="盒备注（选填）">' +
           '</div>' +
         '</div>' +
@@ -306,17 +310,21 @@
     cards.forEach(function (card) {
       const bi = +card.dataset.bi;
       const b = state.data.boxes[bi];
+      if (!b) { card.classList.add('hidden'); return; }
       const hay = [b.id, b.room, b.row, b.shelf, b.layer, b.note]
-        .concat((b.items || []).map(function (i) { return i.title + ' ' + i.no + ' ' + i.dept; }))
+        .concat((b.folders || []).map(function (f) {
+          return [f.name, f.path, f.note]
+            .concat((f.files || []).map(function (it) { return it.name + ' ' + (it.note || ''); }))
+            .join(' ');
+        }))
         .filter(Boolean).join(' ').toLowerCase();
       const show = !terms.length || terms.every(function (t) { return hay.indexOf(t) >= 0; });
       card.classList.toggle('hidden', !show);
       if (show) visible++;
     });
-    $('noBoxes').classList.toggle('hidden', state.data.boxes.length > 0);
+    $('noBoxes').classList.toggle('hidden', visible > 0 || state.data.boxes.length === 0);
   }
 
-  /* ---------- 修改 ---------- */
   function markDirty() {
     state.dirty = true;
     $('dirtyHint').textContent = '有未保存的修改';
@@ -340,54 +348,77 @@
 
     const onEdit = function (e) {
       const el = e.target;
-      if (!el.dataset || (!el.dataset.field && !el.dataset.ifield)) return;
-      const bi = +el.dataset.idx;
+      if (!el.dataset) return;
+      const card = el.closest('.box-card');
+      if (!card) return;
+      const bi = +card.dataset.bi;
       const box = state.data.boxes[bi];
       if (!box) return;
-      if (el.dataset.ifield) {
-        const ii = +el.dataset.ii;
-        if (!box.items[ii]) return;
-        box.items[ii][el.dataset.ifield] = el.value;
-      } else {
+      if (el.dataset.ff) {
+        const f = (box.folders || [])[+el.dataset.fi];
+        if (!f) return;
+        f[el.dataset.ff] = el.value;
+      } else if (el.dataset.if) {
+        const f = (box.folders || [])[+el.dataset.fi];
+        if (!f) return;
+        const it = (f.files || [])[+el.dataset.ii];
+        if (!it) return;
+        it[el.dataset.if] = el.value;
+      } else if (el.dataset.field) {
         box[el.dataset.field] = el.value;
+      } else {
+        return;
       }
       markDirty();
     };
     container.addEventListener('input', onEdit);
-    container.addEventListener('change', function (e) {
-      if (e.target.tagName === 'SELECT') onEdit(e);
-    });
 
     container.addEventListener('click', function (e) {
       const btn = e.target.closest('[data-act]');
       if (!btn) return;
-      const bi = +btn.dataset.idx;
+      const card = btn.closest('.box-card');
+      if (!card) return;
+      const bi = +card.dataset.bi;
+      const fi = btn.dataset.fi === undefined ? -1 : +btn.dataset.fi;
       const act = btn.dataset.act;
       const box = state.data.boxes[bi];
       if (!box) return;
 
-      if (act === 'add-item') {
-        box.items = box.items || [];
-        box.items.push({ no: '', title: '', year: '', retention: '永久', dept: '', path: '', status: '在架', note: '' });
+      if (act === 'add-folder') {
+        box.folders = box.folders || [];
+        box.folders.push({ name: '', path: '', note: '', files: [] });
         renderBoxes();
-        const card = container.querySelector('.box-card[data-bi="' + bi + '"]');
-        if (card) {
-          card.classList.remove('hidden');
-          const rows = card.querySelectorAll('tbody tr');
-          const last = rows[rows.length - 1];
-          if (last) last.querySelector('input').focus();
-        }
+        focusEl('input[data-fi="' + (box.folders.length - 1) + '"][data-ff="name"]');
         markDirty();
-      } else if (act === 'del-item') {
+      } else if (act === 'del-folder') {
+        const f = box.folders[fi];
+        if (!f) return;
+        const cnt = (f.files || []).length;
+        if (!confirm('删除文件夹「' + (f.name || '未命名') + '」' + (cnt ? '及其 ' + cnt + ' 个文件' : '') + '？')) return;
+        box.folders.splice(fi, 1);
+        renderBoxes();
+        markDirty();
+      } else if (act === 'add-file') {
+        const f = box.folders[fi];
+        if (!f) return;
+        f.files = f.files || [];
+        f.files.push({ name: '', note: '' });
+        renderBoxes();
+        focusEl('input[data-fi="' + fi + '"][data-ii="' + (f.files.length - 1) + '"][data-if="name"]');
+        markDirty();
+      } else if (act === 'del-file') {
+        const f = box.folders[fi];
+        if (!f) return;
         const ii = +btn.dataset.ii;
-        if (!box.items[ii]) return;
-        const name = box.items[ii].title || box.items[ii].no || '这一件';
-        if (!confirm('删除「' + name + '」？')) return;
-        box.items.splice(ii, 1);
+        const it = (f.files || [])[ii];
+        if (!it) return;
+        if (!confirm('删除文件「' + (it.name || '未命名') + '」？')) return;
+        f.files.splice(ii, 1);
         renderBoxes();
         markDirty();
       } else if (act === 'del-box') {
-        if (!confirm('删除档案盒「' + (box.id || '未编号') + '」及其 ' + (box.items || []).length + ' 件记录？')) return;
+        const cnt = (box.folders || []).length;
+        if (!confirm('删除档案盒「' + (box.id || '未编号') + '」及其 ' + cnt + ' 个文件夹？')) return;
         state.data.boxes.splice(bi, 1);
         renderBoxes();
         markDirty();
@@ -395,14 +426,18 @@
     });
   }
 
+  function focusEl(selector) {
+    const el = $('boxes').querySelector(selector);
+    if (el) { el.focus(); el.select(); }
+  }
+
   function addBox() {
     let n = state.data.boxes.length + 1, id = '';
     do { id = 'NEW-' + String(n).padStart(3, '0'); n++; }
     while (state.data.boxes.some(function (b) { return b.id === id; }));
-    state.data.boxes.unshift({ id: id, room: '', row: '', shelf: '', layer: '', note: '', items: [] });
+    state.data.boxes.unshift({ id: id, room: '', row: '', shelf: '', layer: '', note: '', folders: [] });
     renderBoxes();
-    const first = $('boxes').querySelector('.box-card .b-id');
-    if (first) { first.focus(); first.select(); }
+    focusEl('.box-card .b-id');
     markDirty();
     window.scrollTo({ top: 0 });
   }
@@ -416,8 +451,10 @@
       if (!id) errs.push('第 ' + (i + 1) + ' 个档案盒没有编号');
       else if (seen[id]) errs.push('档案盒编号重复：' + id);
       seen[id] = true;
-      (b.items || []).forEach(function (it) {
-        if (!it.title && !it.no) errs.push('档案盒 ' + (id || (i + 1)) + ' 中有一件既无档号也无题名');
+      (b.folders || []).forEach(function (f) {
+        if (!(f.name || '').trim() && !(f.path || '').trim()) {
+          errs.push('档案盒 ' + (id || (i + 1)) + ' 里有一个文件夹既没有名称也没有路径');
+        }
       });
     });
     return errs;
@@ -432,20 +469,21 @@
     const stamp = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
       String(d.getDate()).padStart(2, '0');
     return {
-      version: 1,
+      version: 2,
       updatedAt: stamp,
       rooms: rooms,
       boxes: state.data.boxes.map(function (b) {
         return {
           id: String(b.id || '').trim(),
           room: b.room || '', row: b.row || '', shelf: b.shelf || '', layer: b.layer || '', note: b.note || '',
-          items: (b.items || []).filter(function (it) {
-            return it && (it.no || it.title || it.path);
-          }).map(function (it) {
+          folders: (b.folders || []).filter(function (f) {
+            return (f.name || '').trim() || (f.path || '').trim();
+          }).map(function (f) {
             return {
-              no: it.no || '', title: it.title || '', year: it.year || '',
-              retention: it.retention || '', dept: it.dept || '',
-              path: it.path || '', status: it.status || '在架', note: it.note || ''
+              name: f.name || '', path: f.path || '', note: f.note || '',
+              files: (f.files || []).filter(function (it) { return (it.name || '').trim(); }).map(function (it) {
+                return { name: it.name || '', note: it.note || '' };
+              })
             };
           })
         };
@@ -471,11 +509,7 @@
     const msg = '更新档案数据 ' + payload.updatedAt;
 
     const doPut = function () {
-      const body = {
-        message: msg,
-        content: utf8ToB64(text),
-        branch: c.branch || 'main'
-      };
+      const body = { message: msg, content: utf8ToB64(text), branch: c.branch || 'main' };
       if (state.sha) body.sha = state.sha;
       return fetch(apiUrl(c), {
         method: 'PUT',
@@ -529,10 +563,9 @@
       try {
         const d = JSON.parse(reader.result);
         if (!Array.isArray(d.boxes)) throw new Error('文件里没有 boxes 数组');
-        setData(d);
-        state.dirty = true;
-        $('dirtyHint').textContent = '有未保存的修改';
-        banner('已导入 ' + d.boxes.length + ' 个档案盒，记得保存', 'ok');
+        setData(d, true);
+        markDirty();
+        banner('已导入 ' + d.boxes.length + ' 个档案盒，记得点“保存到 GitHub”', 'ok');
       } catch (e) {
         banner('导入失败：' + e.message, 'err');
       }
@@ -540,7 +573,6 @@
     reader.readAsText(file);
   }
 
-  /* ---------- 草稿 ---------- */
   function checkDraft() {
     let d = null;
     try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) {}
@@ -549,10 +581,9 @@
     banner('发现本机草稿（' + when + '），可能是上次未保存的修改。',
       '', '<button id="restoreDraft">恢复草稿</button><button id="dropDraft">丢弃</button>');
     $('restoreDraft').onclick = function () {
-      setData(d.data);
-      state.dirty = true;
-      $('dirtyHint').textContent = '有未保存的修改';
-      banner('已恢复草稿', 'ok');
+      setData(d.data, true);
+      markDirty();
+      $('banner').classList.add('hidden');
     };
     $('dropDraft').onclick = function () {
       localStorage.removeItem(DRAFT_KEY);
@@ -569,20 +600,16 @@
   $('exportBtn').addEventListener('click', exportJson);
   $('importBtn').addEventListener('click', function () { $('importFile').click(); });
   $('importFile').addEventListener('change', function (e) {
-    if (e.target.files[0]) importJson(e.target.files[0]);
+    const f = e.target.files[0];
+    if (f) importJson(f);
     e.target.value = '';
   });
   $('q').addEventListener('input', applyFilter);
-  window.addEventListener('beforeunload', function (e) {
-    if (state.dirty) { e.preventDefault(); e.returnValue = ''; }
-  });
 
   bindEditor();
   fillCfgForm();
-  setData({ version: 1, updatedAt: '', rooms: [], boxes: [] });
-  renderStats();
   loadLocal();
-  setTimeout(checkDraft, 1200);
+  checkDraft();
 })();
 </script>
 </body>
