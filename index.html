@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>档案存放索引</title>
-<link rel="stylesheet" href="assets/style.css?v=5">
+<link rel="stylesheet" href="assets/style.css?v=7">
 <style>
   @media print {
     body.detail-open .topbar,
@@ -71,7 +71,7 @@
 
 </main>
 
-<script src="assets/app.js?v=5"></script>
+<script src="assets/app.js?v=7"></script>
 <script>
 (function () {
   let DATA = null;
@@ -165,6 +165,7 @@
 
     $('resultList').innerHTML = groups.map(function (g) {
       const box = g.box;
+      const pal = App.boxPalette(box, (DATA.boxes || []).indexOf(box));
       const inner = g.folders.map(function (f, i) {
         const fileHit = terms.length && (f.files || []).some(function (it) {
           return terms.every(function (t) { return ((it.name || '') + ' ' + (it.note || '')).toLowerCase().indexOf(t) >= 0; });
@@ -173,7 +174,8 @@
         return folderRow(box, f, terms, open);
       }).join('');
 
-      return '<div class="box-group' + (openKeys[box.id] === false ? ' collapsed' : '') + '">' +
+      return '<div class="box-group' + (openKeys[box.id] === false ? ' collapsed' : '') +
+          '" style="--box:' + pal[0] + ';--box-soft:' + pal[1] + '">' +
         '<div class="box-group-head" data-box="' + App.esc(box.id) + '">' +
           '<span class="caret"></span>' +
           '<span class="chip">' + App.esc(box.id) + '</span>' +
@@ -193,6 +195,9 @@
     const box = (DATA.boxes || []).find(function (b) { return b.id === id; });
     if (!box) { App.toast('找不到档案盒：' + id, 'err'); return; }
     currentBox = box;
+    const pal = App.boxPalette(box, (DATA.boxes || []).indexOf(box));
+    $('detailPanel').style.setProperty('--box', pal[0]);
+    $('detailPanel').style.setProperty('--box-soft', pal[1]);
     $('dCode').textContent = box.id;
     $('dLoc').textContent = App.location(box) || '（未登记位置）';
     $('dNote').textContent = box.note ? '备注：' + box.note : '';
