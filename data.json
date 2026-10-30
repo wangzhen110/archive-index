@@ -19,8 +19,14 @@
           "path": "\\\\fileserver\\archive\\2024\\财务\\审计\\",
           "note": "",
           "files": [
-            { "name": "审计报告.pdf", "note": "" },
-            { "name": "审计报告附表.xlsx", "note": "" }
+            {
+              "name": "审计报告.pdf",
+              "note": ""
+            },
+            {
+              "name": "审计报告附表.xlsx",
+              "note": ""
+            }
           ]
         },
         {
@@ -28,9 +34,18 @@
           "path": "\\\\fileserver\\archive\\2024\\财务\\账簿\\",
           "note": "纸质 3 册",
           "files": [
-            { "name": "总账.xlsx", "note": "" },
-            { "name": "明细账.xlsx", "note": "" },
-            { "name": "日记账.xlsx", "note": "" }
+            {
+              "name": "总账.xlsx",
+              "note": ""
+            },
+            {
+              "name": "明细账.xlsx",
+              "note": ""
+            },
+            {
+              "name": "日记账.xlsx",
+              "note": ""
+            }
           ]
         }
       ]
@@ -48,8 +63,14 @@
           "path": "\\\\fileserver\\archive\\2024\\采购\\合同\\",
           "note": "",
           "files": [
-            { "name": "设备采购合同.pdf", "note": "仅纸质原件，未扫描" },
-            { "name": "物流框架协议.pdf", "note": "" }
+            {
+              "name": "设备采购合同.pdf",
+              "note": "仅纸质原件，未扫描"
+            },
+            {
+              "name": "物流框架协议.pdf",
+              "note": ""
+            }
           ]
         }
       ]
@@ -67,8 +88,14 @@
           "path": "\\\\fileserver\\hr\\contracts\\2023\\",
           "note": "",
           "files": [
-            { "name": "第一批劳动合同.pdf", "note": "" },
-            { "name": "第二批劳动合同.pdf", "note": "" }
+            {
+              "name": "第一批劳动合同.pdf",
+              "note": ""
+            },
+            {
+              "name": "第二批劳动合同.pdf",
+              "note": ""
+            }
           ]
         },
         {
@@ -76,7 +103,10 @@
           "path": "\\\\fileserver\\hr\\performance\\2023\\",
           "note": "",
           "files": [
-            { "name": "年度考核汇总.xlsx", "note": "" }
+            {
+              "name": "年度考核汇总.xlsx",
+              "note": ""
+            }
           ]
         }
       ]
