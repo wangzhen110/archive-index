@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>档案存放索引</title>
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  @media print {
+    body.detail-open .topbar,
+    body.detail-open #searchPanel,
+    body.detail-open .detail-actions { display: none !important; }
+    body { background: #fff; }
+  }
+  #detailPanel table.grid tbody tr { cursor: default; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <h1>档案存放索引</h1>
+  <nav>
+    <a href="index.html" class="active">查询</a>
+    <a href="labels.html">标签打印</a>
+  </nav>
+  <div class="meta">
+    <span id="statMeta">加载中…</span>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="panel" id="searchPanel">
+    <div class="search-row">
+      <input type="search" id="q" placeholder="搜索档号、题名、部门、库房、排架位置、电子路径…" autocomplete="off">
+      <button class="ghost" id="clearBtn" title="清空">清空</button>
+    </div>
+
+    <div class="filters">
+      <select id="fRoom"><option value="">全部库房</option></select>
+      <select id="fYear"><option value="">全部年度</option></select>
+      <select id="fDept"><option value="">全部部门</option></select>
+      <select id="fRet"><option value="">全部保管期限</option></select>
+    </div>
+
+    <div class="stat-line">
+      <span>档案盒 <b id="sBoxes">0</b></span>
+      <span>文件 <b id="sItems">0</b></span>
+      <span id="sShown"></span>
+      <span id="sUpdated"></span>
+    </div>
+
+    <div class="table-scroll">
+      <table class="grid" id="resultTable">
+        <thead>
+          <tr>
+            <th>档号</th>
+            <th>题名</th>
+            <th>年度</th>
+            <th>保管期限</th>
+            <th>部门</th>
+            <th>存放位置</th>
+            <th>电子文件</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody id="resultBody"></tbody>
+      </table>
+    </div>
+    <div class="empty hidden" id="emptyBox">没有匹配的记录，换个关键词或清空筛选试试。</div>
+  </section>
+
+  <section class="panel hidden" id="detailPanel">
+    <div class="detail-head">
+      <div>
+        <div class="muted small">档案盒</div>
+        <h2 id="dCode">—</h2>
+        <div class="detail-loc"><span class="big" id="dLoc">—</span></div>
+        <div class="muted small" id="dNote"></div>
+      </div>
+      <div class="detail-actions">
+        <button class="btn" id="backBtn">← 返回搜索</button>
+        <a class="btn" id="dLabelLink" href="labels.html">打印此盒标签</a>
+        <button class="btn primary" id="printBtn">打印盒内清单</button>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table class="grid">
+        <thead>
+          <tr>
+            <th>档号</th>
+            <th>题名</th>
+            <th>年度</th>
+            <th>保管期限</th>
+            <th>部门</th>
+            <th>电子文件</th>
+            <th>状态</th>
+            <th>备注</th>
+          </tr>
+        </thead>
+        <tbody id="detailBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<script src="assets/app.js"></script>
+<script>
+(function () {
+  let DATA = null;
+  let FLAT = [];
+  let currentBox = null;
+
+  const $ = function (id) { return document.getElementById(id); };
+  const qEl = $('q');
+  const filters = { room: $('fRoom'), year: $('fYear'), dept: $('fDept'), ret: $('fRet') };
+
+  function termsOf(s) {
+    return s.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  }
+
+  function mark(text, terms) {
+    let s = App.esc(text);
+    if (!terms.length) return s;
+    const pattern = terms
+      .map(function (t) { return App.esc(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); })
+      .filter(Boolean)
+      .join('|');
+    if (!pattern) return s;
+    try {
+      return s.replace(new RegExp('(' + pattern + ')', 'gi'), '<mark>$1</mark>');
+    } catch (e) {
+      return s;
+    }
+  }
+
+  function flatItem(entry) {
+    const b = entry.box, it = entry.item || {};
+    return [
+      it.no, it.title, it.year, it.retention, it.dept, it.path, it.status, it.note,
+      b.id, b.room, b.row, b.shelf, b.layer, b.note
+    ].filter(Boolean).join(' ').toLowerCase();
+  }
+
+  function buildIndex() {
+    FLAT = [];
+    DATA.boxes.forEach(function (box) {
+      const items = box.items && box.items.length ? box.items : [null];
+      items.forEach(function (item) {
+        FLAT.push({ box: box, item: item, hay: '' });
+      });
+    });
+    FLAT.forEach(function (e) { e.hay = flatItem(e); });
+  }
+
+  function fillFilters() {
+    const rooms = new Set(DATA.rooms.concat(DATA.boxes.map(function (b) { return b.room; })));
+    const years = new Set(), depts = new Set(), rets = new Set();
+    DATA.boxes.forEach(function (b) {
+      (b.items || []).forEach(function (it) {
+        if (it.year) years.add(it.year);
+        if (it.dept) depts.add(it.dept);
+        if (it.retention) rets.add(it.retention);
+      });
+    });
+    const fill = function (sel, values, allLabel) {
+      sel.innerHTML = '<option value="">' + allLabel + '</option>' +
+        Array.from(values).filter(Boolean).sort().map(function (v) {
+          return '<option value="' + App.esc(v) + '">' + App.esc(v) + '</option>';
+        }).join('');
+    };
+    fill(filters.room, rooms, '全部库房');
+    fill(filters.year, years, '全部年度');
+    fill(filters.dept, depts, '全部部门');
+    fill(filters.ret, rets, '全部保管期限');
+  }
+
+  function render() {
+    const terms = termsOf(qEl.value);
+    const rows = FLAT.filter(function (e) {
+      if (terms.length && !terms.every(function (t) { return e.hay.indexOf(t) >= 0; })) return false;
+      const b = e.box, it = e.item || {};
+      if (filters.room.value && b.room !== filters.room.value) return false;
+      if (filters.year.value && it.year !== filters.year.value) return false;
+      if (filters.dept.value && it.dept !== filters.dept.value) return false;
+      if (filters.ret.value && it.retention !== filters.ret.value) return false;
+      return true;
+    });
+
+    $('sShown').textContent = '当前显示 ' + rows.length + ' 条';
+    $('emptyBox').classList.toggle('hidden', rows.length > 0);
+
+    const LIMIT = 300;
+    const html = rows.slice(0, LIMIT).map(function (e) {
+      const b = e.box, it = e.item || {};
+      const statusCls = it.status === '在架' ? 'chip gray' : (it.status ? 'chip warn' : 'chip gray');
+      const pathCell = it.path
+        ? (/^https?:/i.test(it.path)
+            ? '<a href="' + App.esc(it.path) + '" target="_blank" rel="noopener" class="small">打开链接</a>'
+            : '<span class="mono small" title="' + App.esc(it.path) + '">' + mark(App.fileNameFromPath(it.path), terms) + '</span>')
+        : '<span class="muted">—</span>';
+      return '<tr data-box="' + App.esc(b.id) + '">' +
+        '<td class="nowrap"><span class="mono">' + mark(it.no || '（未编号）', terms) + '</span></td>' +
+        '<td>' + mark(it.title || '', terms) + '</td>' +
+        '<td class="nowrap">' + mark(it.year || '', terms) + '</td>' +
+        '<td class="nowrap">' + mark(it.retention || '', terms) + '</td>' +
+        '<td class="nowrap">' + mark(it.dept || '', terms) + '</td>' +
+        '<td class="loc"><span class="chip">' + mark(b.id, terms) + '</span> ' +
+          mark(App.location(b), terms) + '</td>' +
+        '<td>' + pathCell + '</td>' +
+        '<td class="nowrap"><span class="' + statusCls + '">' + mark(it.status || '在架', terms) + '</span></td>' +
+      '</tr>';
+    }).join('');
+
+    $('resultBody').innerHTML = html || '';
+    if (rows.length > LIMIT) {
+      $('resultBody').innerHTML += '<tr><td colspan="8" class="muted small">仅显示前 ' + LIMIT +
+        ' 条，共 ' + rows.length + ' 条，请补充关键词缩小范围。</td></tr>';
+    }
+  }
+
+  function openBox(id, push) {
+    const box = DATA.boxes.find(function (b) { return b.id === id; });
+    if (!box) { App.toast('找不到档案盒：' + id, 'err'); return; }
+    currentBox = box;
+    $('dCode').textContent = box.id;
+    $('dLoc').textContent = App.location(box) || '（未登记位置）';
+    $('dNote').textContent = box.note ? '备注：' + box.note : '';
+    $('dLabelLink').href = 'labels.html?box=' + encodeURIComponent(box.id);
+
+    const items = box.items || [];
+    $('detailBody').innerHTML = items.length ? items.map(function (it) {
+      const statusCls = it.status === '在架' ? 'chip gray' : 'chip warn';
+      const pathCell = it.path
+        ? (/^https?:/i.test(it.path)
+            ? '<a href="' + App.esc(it.path) + '" target="_blank" rel="noopener" class="small">打开链接</a>'
+            : '<span class="mono small">' + App.esc(it.path) + '</span>')
+        : '<span class="muted">—</span>';
+      return '<tr>' +
+        '<td class="nowrap"><span class="mono">' + App.esc(it.no || '（未编号）') + '</span></td>' +
+        '<td>' + App.esc(it.title || '') + '</td>' +
+        '<td class="nowrap">' + App.esc(it.year || '') + '</td>' +
+        '<td class="nowrap">' + App.esc(it.retention || '') + '</td>' +
+        '<td class="nowrap">' + App.esc(it.dept || '') + '</td>' +
+        '<td>' + pathCell + '</td>' +
+        '<td class="nowrap"><span class="' + statusCls + '">' + App.esc(it.status || '在架') + '</span></td>' +
+        '<td class="small muted">' + App.esc(it.note || '') + '</td>' +
+      '</tr>';
+    }).join('') : '<tr><td colspan="8" class="muted small">这个盒还没有登记文件。</td></tr>';
+
+    $('searchPanel').classList.add('hidden');
+    $('detailPanel').classList.remove('hidden');
+    document.body.classList.add('detail-open');
+    window.scrollTo({ top: 0 });
+
+    if (push !== false) {
+      const url = '?box=' + encodeURIComponent(box.id);
+      history.pushState({ box: box.id }, '', url);
+    }
+  }
+
+  function closeBox(push) {
+    $('detailPanel').classList.add('hidden');
+    $('searchPanel').classList.remove('hidden');
+    document.body.classList.remove('detail-open');
+    currentBox = null;
+    if (push !== false) history.pushState({}, '', 'index.html');
+  }
+
+  function fromUrl() {
+    const box = new URLSearchParams(location.search).get('box');
+    if (box) openBox(box, false);
+  }
+
+  function init() {
+    App.loadData().then(function (data) {
+      DATA = data;
+      const s = App.stats(data);
+      $('sBoxes').textContent = s.boxes;
+      $('sItems').textContent = s.items;
+      $('statMeta').textContent = '共 ' + s.boxes + ' 盒 / ' + s.items + ' 件 · 更新于 ' +
+        (data.updatedAt || '—');
+      $('sUpdated').textContent = '';
+      buildIndex();
+      fillFilters();
+      render();
+      fromUrl();
+    }).catch(function (err) {
+      $('statMeta').textContent = '数据加载失败';
+      $('emptyBox').classList.remove('hidden');
+      $('emptyBox').textContent = err.message + '。请确认 data.json 与本页在同一目录。';
+    });
+  }
+
+  qEl.addEventListener('input', render);
+  Object.keys(filters).forEach(function (k) { filters[k].addEventListener('change', render); });
+  $('clearBtn').addEventListener('click', function () {
+    qEl.value = '';
+    Object.keys(filters).forEach(function (k) { filters[k].value = ''; });
+    render();
+    qEl.focus();
+  });
+
+  $('resultBody').addEventListener('click', function (e) {
+    const tr = e.target.closest('tr[data-box]');
+    if (tr) openBox(tr.getAttribute('data-box'));
+  });
+
+  $('backBtn').addEventListener('click', function () { closeBox(); });
+  $('printBtn').addEventListener('click', function () { window.print(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && currentBox) closeBox();
+  });
+  window.addEventListener('popstate', function () {
+    const box = new URLSearchParams(location.search).get('box');
+    if (box) openBox(box, false); else closeBox(false);
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>
