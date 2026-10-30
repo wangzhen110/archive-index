@@ -1,8 +1,5 @@
 /* 公共工具，供 index.html / labels.html / admin.html 使用 */
 window.App = (function () {
-  const RETENTIONS = ['永久', '30 年', '10 年', '5 年'];
-  const STATUSES = ['在架', '借出', '待归'];
-
   function esc(v) {
     return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -17,14 +14,14 @@ window.App = (function () {
     return locParts(box).join(' · ');
   }
 
-  function boxItemCount(box) {
-    return (box.items || []).length;
+  function boxFolderCount(box) {
+    return (box.folders || []).length;
   }
 
-  function fileNameFromPath(p) {
-    if (!p) return '';
-    const parts = String(p).split(/[\\/]/).filter(Boolean);
-    return parts.length ? parts[parts.length - 1] : p;
+  function boxFileCount(box) {
+    return (box.folders || []).reduce(function (n, f) {
+      return n + ((f.files || []).length);
+    }, 0);
   }
 
   async function loadData() {
@@ -37,8 +34,12 @@ window.App = (function () {
   }
 
   function stats(data) {
-    const items = data.boxes.reduce(function (n, b) { return n + boxItemCount(b); }, 0);
-    return { boxes: data.boxes.length, items: items };
+    let folders = 0, files = 0;
+    (data.boxes || []).forEach(function (b) {
+      folders += boxFolderCount(b);
+      files += boxFileCount(b);
+    });
+    return { boxes: (data.boxes || []).length, folders: folders, files: files };
   }
 
   function toast(msg, kind) {
@@ -66,13 +67,11 @@ window.App = (function () {
   }
 
   return {
-    RETENTIONS: RETENTIONS,
-    STATUSES: STATUSES,
     esc: esc,
     locParts: locParts,
     location: locationText,
-    boxItemCount: boxItemCount,
-    fileNameFromPath: fileNameFromPath,
+    boxFolderCount: boxFolderCount,
+    boxFileCount: boxFileCount,
     loadData: loadData,
     stats: stats,
     toast: toast,
