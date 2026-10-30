@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>档案录入维护</title>
-<link rel="stylesheet" href="assets/style.css?v=4">
+<link rel="stylesheet" href="assets/style.css?v=5">
 </head>
 <body>
 
@@ -72,7 +72,7 @@
 
 </main>
 
-<script src="assets/app.js?v=4"></script>
+<script src="assets/app.js?v=5"></script>
 <script>
 (function () {
   const CFG_KEY = 'archive-cfg-v1';
@@ -270,7 +270,6 @@
           '<div class="folder-head">' +
             '<button class="folder-toggle" data-act="toggle-folder" data-fi="' + fi + '" title="展开/收起"></button>' +
             '<input class="f-name" type="text" data-fi="' + fi + '" data-ff="name" value="' + App.esc(f.name) + '" placeholder="文件夹名，例如 2024 年度审计">' +
-            '<input class="f-path" type="text" data-fi="' + fi + '" data-ff="path" value="' + App.esc(f.path) + '" placeholder="电子路径，例如 \\\\fileserver\\archive\\2024\\财务\\">' +
             '<input class="f-note" type="text" data-fi="' + fi + '" data-ff="note" value="' + App.esc(f.note) + '" placeholder="备注（选填）">' +
             '<span class="count">' + files.length + ' 个文件</span>' +
             '<button data-act="del-folder" data-fi="' + fi + '" style="padding:5px 10px;font-size:12px">删除文件夹</button>' +
